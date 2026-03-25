@@ -1,0 +1,81 @@
+name: Build & Publish ESP32 Firmware
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install PlatformIO
+        run: pip install platformio
+
+      - name: Build ESP32-S3 firmware
+        run: cd esp32 && platformio run
+
+      - name: Collect firmware binaries
+        run: |
+          # Copy compiled binaries to docs/firmware/
+          cp esp32/.pio/build/seeed_xiao_esp32s3/bootloader.bin docs/firmware/bootloader.bin
+          cp esp32/.pio/build/seeed_xiao_esp32s3/partitions.bin docs/firmware/partitions.bin
+          cp esp32/.pio/build/seeed_xiao_esp32s3/firmware.bin docs/firmware/firmware.bin
+
+          # boot_app0.bin is in the ESP32 Arduino core packages
+          BOOT_APP0=$(find ~/.platformio/packages -name "boot_app0.bin" -path "*/partitions/*" | head -1)
+          if [ -n "$BOOT_APP0" ]; then
+            cp "$BOOT_APP0" docs/firmware/boot_app0.bin
+          else
+            echo "Warning: boot_app0.bin not found, checking alternative locations..."
+            find ~/.platformio -name "boot_app0.bin" | head -5
+            # Try common location
+            cp ~/.platformio/packages/framework-arduinoespressif32/tools/partitions/boot_app0.bin docs/firmware/boot_app0.bin || true
+          fi
+
+      - name: Update manifest version from tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          sed -i "s/\"version\": \".*\"/\"version\": \"$VERSION\"/" docs/firmware/manifest.json
+
+      - name: Verify build artifacts
+        run: |
+          echo "=== Firmware files ==="
+          ls -la docs/firmware/
+          echo ""
+          echo "=== File sizes ==="
+          du -h docs/firmware/*
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

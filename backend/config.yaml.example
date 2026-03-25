@@ -1,0 +1,54 @@
+hardware:
+  esp32_ip: 192.168.4.1          # Set to your ESP32 IP after WiFi setup (check serial monitor)
+  esp32_port: 80
+  esp32_websocket_port: 81
+  communication_mode: wifi        # 'wifi' or 'serial'
+  serial_port: COM3               # Adjust to your serial port (Windows: COMx, Linux: /dev/ttyUSBx)
+  baud_rate: 115200
+  camera_index: 0                 # 0 = default camera, change if you have multiple
+  connection_retry_timeout: 15
+automation:
+  button_hold_duration: 0.1
+  button_release_delay: 0.1
+  soft_reset_hold: 0.5
+  soft_reset_wait: 3.0
+detection:
+  shiny_zone:
+    upper_x: 264
+    upper_y: 109
+    lower_x: 312
+    lower_y: 151
+  gender_zone:
+    upper_x: 284
+    upper_y: 68
+    lower_x: 311
+    lower_y: 92
+  nature_text_zone:
+    upper_x: 0
+    upper_y: 300
+    lower_x: 350
+    lower_y: 380
+  yellow_star_threshold: 20
+  blue_gender_threshold: 10
+  red_gender_threshold: 10
+  template_thresholds:
+    title_screen: 0.8
+    load_game: 0.7
+    nickname: 0.75
+    oak_lab: 0.9
+    pokemon_menu: 0.85
+    choose_pokemon: 0.85
+    summary_screen: 0.85
+    nature_match: 0.85
+logging:
+  level: INFO
+  log_file: bot_history.log
+  screenshot_directory: encounters
+  save_all_encounters: true
+server:
+  host: 0.0.0.0
+  port: 8000
+  cors_origins:
+  - http://localhost:3000
+  - http://127.0.0.1:3000
+  websocket_heartbeat: 5

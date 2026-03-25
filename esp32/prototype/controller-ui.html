@@ -1,0 +1,607 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <title>ESP32-S3 Controller Tester</title>
+    <style>
+        * { 
+            margin: 0; 
+            padding: 0; 
+            box-sizing: border-box; 
+        }
+        
+        :root {
+            /* NES Color Palette */
+            --nes-gray: #8b8b8b;
+            --nes-dark-gray: #5a5a5a;
+            --nes-darker-gray: #3a3a3a;
+            --nes-light-gray: #b0b0b0;
+            --nes-red: #d92626;
+            --nes-dark-red: #a01010;
+            --nes-white: #f8f8f8;
+            --nes-black: #1a1a1a;
+            --nes-purple: #8b5a9e;
+            --nes-blue: #4169e1;
+            --spacing-xs: 8px;
+            --spacing-sm: 12px;
+            --spacing-md: 16px;
+            --spacing-lg: 20px;
+            --spacing-xl: 24px;
+            --touch-target-min: 44px;
+            --touch-target-large: 70px;
+        }
+        
+        body {
+            font-family: 'Courier New', 'Press Start 2P', monospace, system-ui;
+            background: var(--nes-black);
+            background-image:
+                repeating-linear-gradient(
+                    0deg,
+                    rgba(0, 0, 0, 0.15),
+                    rgba(0, 0, 0, 0.15) 1px,
+                    transparent 1px,
+                    transparent 2px
+                );
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: var(--spacing-md);
+            overflow-x: hidden;
+            -webkit-font-smoothing: antialiased;
+        }
+        
+        .container {
+            background: var(--nes-gray);
+            border-radius: 8px;
+            box-shadow:
+                inset 0 0 0 3px var(--nes-dark-gray),
+                inset 0 0 0 6px var(--nes-light-gray),
+                0 8px 0 var(--nes-darker-gray),
+                0 12px 30px rgba(0,0,0,0.7);
+            padding: var(--spacing-lg);
+            max-width: 600px;
+            width: 100%;
+            border: 4px solid var(--nes-darker-gray);
+        }
+        
+        h1 {
+            text-align: center;
+            color: var(--nes-white);
+            margin-bottom: var(--spacing-sm);
+            font-size: clamp(16px, 4vw, 20px);
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            text-shadow: 3px 3px 0 var(--nes-darker-gray);
+            font-weight: bold;
+        }
+        
+        .prototype-notice {
+            background: var(--nes-darker-gray);
+            border: 3px solid var(--nes-red);
+            border-radius: 0;
+            padding: var(--spacing-sm);
+            margin-bottom: var(--spacing-md);
+            text-align: center;
+            color: var(--nes-white);
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            box-shadow: 0 4px 0 var(--nes-dark-red);
+        }
+        
+        .status {
+            text-align: center;
+            padding: var(--spacing-sm);
+            background: var(--nes-darker-gray);
+            border-radius: 0;
+            margin-bottom: var(--spacing-md);
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: var(--spacing-sm);
+            border: 2px solid var(--nes-dark-gray);
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.5);
+        }
+        
+        .status-item {
+            color: var(--nes-light-gray);
+            font-size: 11px;
+            text-transform: uppercase;
+        }
+        
+        .status-online {
+            color: var(--nes-red);
+            font-weight: bold;
+        }
+        
+        .controller {
+            background: var(--nes-dark-gray);
+            border-radius: 0;
+            padding: var(--spacing-md);
+            margin-bottom: var(--spacing-md);
+            border: 3px solid var(--nes-darker-gray);
+            box-shadow:
+                inset 0 0 0 2px var(--nes-gray),
+                inset 0 4px 8px rgba(0,0,0,0.4);
+        }
+        
+        .control-section {
+            margin-bottom: var(--spacing-lg);
+        }
+        
+        .section-label {
+            text-align: center;
+            color: var(--nes-red);
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            margin-bottom: var(--spacing-xs);
+            font-weight: bold;
+            text-shadow: 1px 1px 0 var(--nes-black);
+        }
+        
+        .button-row {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: var(--spacing-sm);
+            flex-wrap: wrap;
+        }
+        
+        button {
+            padding: var(--spacing-sm) var(--spacing-lg);
+            border: 3px solid var(--nes-darker-gray);
+            border-radius: 4px;
+            font-size: 14px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.1s ease;
+            background: var(--nes-light-gray);
+            color: var(--nes-darker-gray);
+            box-shadow:
+                0 4px 0 var(--nes-darker-gray),
+                0 6px 8px rgba(0,0,0,0.5);
+            min-width: var(--touch-target-min);
+            min-height: var(--touch-target-min);
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+            touch-action: manipulation;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-family: 'Courier New', monospace;
+        }
+        
+        button:active {
+            transform: translateY(4px);
+            box-shadow:
+                0 0 0 var(--nes-darker-gray),
+                0 2px 4px rgba(0,0,0,0.5);
+        }
+        
+        /* System buttons - smaller, distinctive */
+        .btn-system {
+            background: var(--nes-purple);
+            color: var(--nes-white);
+            box-shadow:
+                0 4px 0 var(--nes-darker-gray),
+                0 6px 8px rgba(0,0,0,0.5);
+            font-size: 12px;
+            min-width: 70px;
+            padding: 10px 16px;
+            border: 3px solid var(--nes-darker-gray);
+        }
+        
+        /* D-Pad */
+        .dpad-container {
+            display: grid;
+            grid-template-areas:
+                ". up ."
+                "left center right"
+                ". down .";
+            gap: 4px;
+            width: fit-content;
+            margin: 0 auto;
+            padding: var(--spacing-md);
+            background: var(--nes-darker-gray);
+            border-radius: 0;
+            border: 3px solid var(--nes-black);
+            box-shadow: inset 0 2px 6px rgba(0,0,0,0.6);
+        }
+        
+        .btn-dpad {
+            width: var(--touch-target-large);
+            height: var(--touch-target-large);
+            padding: 0;
+            font-size: 24px;
+            border-radius: 0;
+            background: var(--nes-dark-gray);
+            color: var(--nes-white);
+            border: 3px solid var(--nes-black);
+        }
+        
+        .btn-dpad.up { grid-area: up; }
+        .btn-dpad.down { grid-area: down; }
+        .btn-dpad.left { grid-area: left; }
+        .btn-dpad.right { grid-area: right; }
+        .dpad-center { 
+            grid-area: center; 
+            width: var(--touch-target-large);
+            height: var(--touch-target-large);
+        }
+        
+        /* Action buttons - larger, color-coded */
+        .action-buttons {
+            display: grid;
+            grid-template-areas:
+                ". y ."
+                "x . a"
+                ". b .";
+            gap: var(--spacing-sm);
+            width: fit-content;
+            margin: 0 auto;
+            padding: var(--spacing-md);
+            background: var(--nes-darker-gray);
+            border: 3px solid var(--nes-black);
+            border-radius: 0;
+        }
+        
+        .btn-action {
+            border-radius: 50%;
+            width: 80px;
+            height: 80px;
+            padding: 0;
+            font-size: 24px;
+            font-weight: bold;
+            box-shadow:
+                0 6px 0 var(--nes-darker-gray),
+                0 8px 8px rgba(0,0,0,0.6);
+            border: 4px solid var(--nes-black);
+        }
+        
+        .btn-action.a {
+            grid-area: a;
+            background: var(--nes-red);
+            color: var(--nes-white);
+        }
+        
+        .btn-action.b {
+            grid-area: b;
+            background: var(--nes-red);
+            color: var(--nes-white);
+        }
+        
+        .btn-action.x {
+            grid-area: x;
+            background: var(--nes-light-gray);
+            color: var(--nes-darker-gray);
+        }
+        
+        .btn-action.y {
+            grid-area: y;
+            background: var(--nes-light-gray);
+            color: var(--nes-darker-gray);
+        }
+        
+        .action-center {
+            grid-area: center;
+            width: 80px;
+            height: 80px;
+        }
+        
+        /* Shoulder buttons */
+        .shoulder-buttons {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: var(--spacing-xs);
+            margin-bottom: var(--spacing-md);
+        }
+        
+        .btn-shoulder {
+            min-width: unset;
+            padding: var(--spacing-sm);
+            font-size: 12px;
+            background: var(--nes-dark-gray);
+            color: var(--nes-white);
+            border: 3px solid var(--nes-black);
+        }
+        
+        /* Special buttons */
+        .btn-reset {
+            width: 100%;
+            background: var(--nes-red);
+            color: var(--nes-white);
+            padding: var(--spacing-md);
+            font-size: 14px;
+            box-shadow:
+                0 5px 0 var(--nes-dark-red),
+                0 7px 8px rgba(0,0,0,0.6);
+            border: 3px solid var(--nes-darker-gray);
+        }
+        
+        .btn-release {
+            width: 100%;
+            background: var(--nes-darker-gray);
+            color: var(--nes-white);
+            box-shadow:
+                0 4px 0 var(--nes-black),
+                0 6px 8px rgba(0,0,0,0.5);
+            border: 3px solid var(--nes-black);
+        }
+        
+        .feedback {
+            text-align: center;
+            margin-top: var(--spacing-md);
+            padding: var(--spacing-sm);
+            border-radius: 0;
+            font-weight: bold;
+            font-size: 11px;
+            display: none;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            border: 2px solid;
+        }
+        
+        .feedback.success {
+            background: var(--nes-darker-gray);
+            color: var(--nes-white);
+            border-color: var(--nes-red);
+            display: block;
+        }
+        
+        .feedback.error {
+            background: var(--nes-red);
+            color: var(--nes-white);
+            border-color: var(--nes-dark-red);
+            display: block;
+        }
+        
+        /* Mobile optimizations */
+        @media (max-width: 640px) {
+            body {
+                padding: var(--spacing-xs);
+            }
+            
+            .container {
+                padding: var(--spacing-md);
+                border-radius: 4px;
+            }
+            
+            .btn-action {
+                width: 70px;
+                height: 70px;
+                font-size: 18px;
+            }
+            
+            .action-center {
+                width: 70px;
+                height: 70px;
+            }
+            
+            .btn-dpad {
+                width: 60px;
+                height: 60px;
+                font-size: 20px;
+            }
+            
+            .dpad-center {
+                width: 60px;
+                height: 60px;
+            }
+            
+            .status {
+                font-size: 12px;
+                flex-direction: column;
+                gap: var(--spacing-xs);
+            }
+        }
+        
+        @media (max-width: 480px) {
+            .container {
+                padding: var(--spacing-sm);
+            }
+            
+            .controller {
+                padding: var(--spacing-sm);
+            }
+            
+            .btn-system {
+                font-size: 12px;
+                min-width: 60px;
+                padding: 8px 12px;
+            }
+            
+            button {
+                font-size: 14px;
+            }
+        }
+        
+        /* Landscape mode optimization for phones */
+        @media (max-width: 896px) and (orientation: landscape) {
+            body {
+                padding: var(--spacing-xs);
+            }
+            
+            .container {
+                max-width: 100%;
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: var(--spacing-md);
+            }
+            
+            h1, .prototype-notice, .status {
+                grid-column: 1 / -1;
+            }
+            
+            .control-section:has(.dpad-container) {
+                grid-column: 1;
+            }
+            
+            .control-section:has(.action-buttons) {
+                grid-column: 2;
+            }
+            
+            .control-section:has(.btn-reset),
+            .control-section:has(.btn-release) {
+                grid-column: 1 / -1;
+            }
+        }
+        
+        /* Prevent zoom on double tap for iOS */
+        @media (hover: none) and (pointer: coarse) {
+            button {
+                font-size: 16px;
+            }
+        }
+        
+        /* Safe area for notched devices */
+        @supports (padding: env(safe-area-inset-top)) {
+            .container {
+                padding: max(var(--spacing-lg), env(safe-area-inset-top))
+                         max(var(--spacing-lg), env(safe-area-inset-right))
+                         max(var(--spacing-lg), env(safe-area-inset-bottom))
+                         max(var(--spacing-lg), env(safe-area-inset-left));
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎮 ESP32-S3 Controller Tester</h1>
+        
+        <div class="prototype-notice">
+            <strong>⚠️ PROTOTYPE MODE</strong><br>
+            Standalone UI for design testing - No ESP32 connection
+        </div>
+        
+        <div class="status">
+            <div class="status-item status-online">● Prototype</div>
+            <div class="status-item">IP: (Prototype)</div>
+            <div class="status-item">Mode: USB HID</div>
+        </div>
+
+        <div class="controller">
+            <!-- System Buttons -->
+            <div class="control-section">
+                <div class="section-label">System</div>
+                <div class="button-row">
+                    <button onclick="sendCommand(0x0A, 'MINUS')" class="btn-system">−</button>
+                    <button onclick="sendCommand(0x0B, 'HOME')" class="btn-system">🏠</button>
+                    <button onclick="sendCommand(0x09, 'PLUS')" class="btn-system">+</button>
+                    <button onclick="sendCommand(0x0C, 'CAPTURE')" class="btn-system">📷</button>
+                </div>
+            </div>
+
+            <!-- Shoulder Buttons -->
+            <div class="control-section">
+                <div class="section-label">Shoulders</div>
+                <div class="shoulder-buttons">
+                    <button onclick="sendCommand(0x05, 'L')" class="btn-shoulder">L</button>
+                    <button onclick="sendCommand(0x07, 'ZL')" class="btn-shoulder">ZL</button>
+                    <button onclick="sendCommand(0x08, 'ZR')" class="btn-shoulder">ZR</button>
+                    <button onclick="sendCommand(0x06, 'R')" class="btn-shoulder">R</button>
+                </div>
+            </div>
+
+            <!-- D-Pad -->
+            <div class="control-section">
+                <div class="section-label">D-Pad</div>
+                <div class="dpad-container">
+                    <button onclick="sendCommand(0x10, 'D-PAD UP')" class="btn-dpad up">↑</button>
+                    <button onclick="sendCommand(0x12, 'D-PAD LEFT')" class="btn-dpad left">←</button>
+                    <div class="dpad-center"></div>
+                    <button onclick="sendCommand(0x13, 'D-PAD RIGHT')" class="btn-dpad right">→</button>
+                    <button onclick="sendCommand(0x11, 'D-PAD DOWN')" class="btn-dpad down">↓</button>
+                </div>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="control-section">
+                <div class="section-label">Actions</div>
+                <div class="action-buttons">
+                    <button onclick="sendCommand(0x04, 'Y')" class="btn-action y">Y</button>
+                    <button onclick="sendCommand(0x03, 'X')" class="btn-action x">X</button>
+                    <div class="action-center"></div>
+                    <button onclick="sendCommand(0x01, 'A')" class="btn-action a">A</button>
+                    <button onclick="sendCommand(0x02, 'B')" class="btn-action b">B</button>
+                </div>
+            </div>
+
+            <!-- Special Actions -->
+            <div class="control-section">
+                <div class="button-row">
+                    <button onclick="sendCommand(0x20, 'RESET COMBO')" class="btn-reset">🔄 RESET COMBO</button>
+                </div>
+            </div>
+
+            <div class="control-section" style="margin-bottom: 0;">
+                <div class="button-row">
+                    <button onclick="sendCommand(0x00, 'RELEASE ALL')" class="btn-release">Release All</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="feedback" class="feedback"></div>
+    </div>
+
+    <script>
+        function sendCommand(cmd, buttonName) {
+            const feedback = document.getElementById('feedback');
+            
+            // Simulate command sending in prototype mode
+            feedback.className = 'feedback success';
+            feedback.textContent = '✓ ' + buttonName + ' (0x' + cmd.toString(16).toUpperCase().padStart(2, '0') + ')';
+            
+            // Visual feedback on button
+            event.target.style.transform = 'scale(0.95)';
+            setTimeout(() => {
+                event.target.style.transform = '';
+            }, 150);
+            
+            // Clear feedback after delay
+            setTimeout(() => {
+                feedback.style.display = 'none';
+            }, 2000);
+            
+            console.log('Command:', '0x' + cmd.toString(16).toUpperCase().padStart(2, '0'), 'Button:', buttonName);
+        }
+
+        // Auto-release buttons after short press
+        let releaseTimeout;
+        document.querySelectorAll('button').forEach(btn => {
+            btn.addEventListener('click', function() {
+                clearTimeout(releaseTimeout);
+                releaseTimeout = setTimeout(() => {
+                    const feedback = document.getElementById('feedback');
+                    if (feedback.textContent.includes('RELEASE ALL')) return;
+                    
+                    feedback.className = 'feedback';
+                    feedback.textContent = '↻ Auto-released';
+                    feedback.style.background = '#e0e7ff';
+                    feedback.style.color = '#3730a3';
+                    feedback.style.display = 'block';
+                    setTimeout(() => feedback.style.display = 'none', 1000);
+                }, 100);
+            });
+        });
+
+        // Prevent context menu on long press (mobile)
+        document.addEventListener('contextmenu', function(e) {
+            if (e.target.tagName === 'BUTTON') {
+                e.preventDefault();
+            }
+        });
+
+        // Log viewport info for testing
+        console.log('Viewport:', window.innerWidth + 'x' + window.innerHeight);
+        console.log('Device pixel ratio:', window.devicePixelRatio);
+        console.log('Touch support:', 'ontouchstart' in window);
+    </script>
+</body>
+</html>

@@ -1,0 +1,65 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+*.egg-info/
+dist/
+build/
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Logs
+*.log
+bot_history.log
+
+# Screenshots
+encounters/
+!encounters/.gitkeep
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.env.local
+
+# Frontend
+node_modules/
+frontend/dist/
+frontend/build/
+frontend/.next/
+
+# ESP32
+esp32/.pio/
+esp32/.vscode/
+esp32/platformio.ini.user
+
+# Templates (may want to track these, but excluding for now)
+templates/
+!templates/.gitkeep
+
+# Config overrides
+config.local.yaml
+
+# User-specific config (use config.yaml.example as template)
+backend/config.yaml
+
+# Plans / internal development notes
+plans/
+esp32/plans/

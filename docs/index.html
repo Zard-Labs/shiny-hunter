@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ShinyStarter — ESP32 Firmware Installer</title>
+    <script
+        type="module"
+        src="https://unpkg.com/esp-web-tools@10/dist/web/install-button.js?module"
+    ></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Courier New', monospace;
+            background: #1a1a1a;
+            background-image: repeating-linear-gradient(0deg, rgba(0,0,0,.15), rgba(0,0,0,.15) 1px, transparent 1px, transparent 2px);
+            color: #f8f8f8;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        .container {
+            background: #8b8b8b;
+            border: 4px solid #3a3a3a;
+            border-radius: 8px;
+            box-shadow: inset 0 0 0 3px #5a5a5a, inset 0 0 0 6px #b0b0b0, 0 8px 0 #3a3a3a, 0 12px 30px rgba(0,0,0,.7);
+            padding: 40px;
+            max-width: 600px;
+            width: 100%;
+            text-align: center;
+        }
+        h1 {
+            color: #f8f8f8;
+            font-size: 28px;
+            text-transform: uppercase;
+            letter-spacing: 3px;
+            text-shadow: 3px 3px 0 #3a3a3a;
+            margin-bottom: 8px;
+        }
+        .subtitle {
+            color: #d92626;
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            margin-bottom: 30px;
+        }
+        .description {
+            color: #3a3a3a;
+            font-size: 13px;
+            line-height: 1.6;
+            margin-bottom: 30px;
+            text-align: left;
+            background: #b0b0b0;
+            padding: 16px;
+            border: 2px solid #5a5a5a;
+        }
+        .step {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            margin-bottom: 8px;
+        }
+        .step-num {
+            background: #d92626;
+            color: #f8f8f8;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: bold;
+            flex-shrink: 0;
+        }
+        .step-text {
+            text-align: left;
+        }
+        esp-web-install-button {
+            display: block;
+            margin: 30px auto 20px;
+        }
+        esp-web-install-button button {
+            font-family: 'Courier New', monospace;
+            font-size: 18px;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            padding: 16px 40px;
+            background: #d92626;
+            color: #f8f8f8;
+            border: 3px solid #3a3a3a;
+            border-radius: 4px;
+            cursor: pointer;
+            box-shadow: 0 5px 0 #a01010, 0 7px 8px rgba(0,0,0,.6);
+            transition: all 0.1s;
+        }
+        esp-web-install-button button:active {
+            transform: translateY(5px);
+            box-shadow: none;
+        }
+        .requirements {
+            background: #3a3a3a;
+            border: 2px solid #5a5a5a;
+            padding: 16px;
+            margin-top: 20px;
+            font-size: 11px;
+            color: #b0b0b0;
+        }
+        .requirements h3 {
+            color: #d92626;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 8px;
+        }
+        .requirements ul {
+            list-style: none;
+            padding: 0;
+        }
+        .requirements li {
+            padding: 3px 0;
+        }
+        .requirements li::before {
+            content: "▸ ";
+            color: #d92626;
+        }
+        .post-install {
+            background: #5a5a5a;
+            border: 2px solid #3a3a3a;
+            padding: 16px;
+            margin-top: 16px;
+            font-size: 12px;
+            color: #f8f8f8;
+            text-align: left;
+        }
+        .post-install h3 {
+            color: #d92626;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 8px;
+        }
+        a { color: #d92626; }
+        .unsupported {
+            display: none;
+            background: #d92626;
+            color: #f8f8f8;
+            padding: 16px;
+            border: 2px solid #a01010;
+            margin: 20px 0;
+            font-size: 13px;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>🎮 ShinyStarter</h1>
+    <div class="subtitle">ESP32-S3 Firmware Installer</div>
+
+    <div class="description">
+        <div class="step">
+            <div class="step-num">1</div>
+            <div class="step-text">Connect your <strong>Xiao ESP32-S3</strong> to this computer via USB-C</div>
+        </div>
+        <div class="step">
+            <div class="step-num">2</div>
+            <div class="step-text">Click <strong>"Install Firmware"</strong> below and select the serial port</div>
+        </div>
+        <div class="step">
+            <div class="step-num">3</div>
+            <div class="step-text">Wait ~30 seconds for the firmware to flash</div>
+        </div>
+        <div class="step">
+            <div class="step-num">4</div>
+            <div class="step-text">After reboot, connect to <strong>"ShinyStarter-Setup"</strong> WiFi to configure</div>
+        </div>
+    </div>
+
+    <div id="unsupported" class="unsupported">
+        ⚠️ Your browser does not support Web Serial. Please use <strong>Google Chrome</strong> or <strong>Microsoft Edge</strong> on a desktop computer.
+    </div>
+
+    <esp-web-install-button manifest="firmware/manifest.json">
+        <button slot="activate">⚡ Install Firmware</button>
+        <span slot="unsupported" id="unsupported-slot"></span>
+        <span slot="not-allowed" id="not-allowed-slot">
+            ⚠️ Not allowed to use Web Serial. Make sure you're on HTTPS or localhost.
+        </span>
+    </esp-web-install-button>
+
+    <div class="post-install">
+        <h3>After Installation</h3>
+        <div class="step">
+            <div class="step-num">5</div>
+            <div class="step-text">Connect your phone or laptop to the <strong>ShinyStarter-Setup</strong> WiFi network</div>
+        </div>
+        <div class="step">
+            <div class="step-num">6</div>
+            <div class="step-text">A config page will open — select your home WiFi and enter the password</div>
+        </div>
+        <div class="step">
+            <div class="step-num">7</div>
+            <div class="step-text">The ESP32 will reboot and connect to your home network</div>
+        </div>
+        <div class="step">
+            <div class="step-num">8</div>
+            <div class="step-text">Plug the ESP32 into your Nintendo Switch via USB-C — it will be recognized as a controller</div>
+        </div>
+    </div>
+
+    <div class="requirements">
+        <h3>Requirements</h3>
+        <ul>
+            <li>Google Chrome or Microsoft Edge (desktop)</li>
+            <li>Xiao ESP32-S3 board</li>
+            <li>USB-C data cable (not charge-only)</li>
+        </ul>
+    </div>
+</div>
+
+<script>
+    // Show unsupported message if Web Serial is not available
+    if (!('serial' in navigator)) {
+        document.getElementById('unsupported').style.display = 'block';
+    }
+</script>
+</body>
+</html>

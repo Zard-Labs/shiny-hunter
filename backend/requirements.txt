@@ -1,0 +1,17 @@
+# Use latest versions with pre-built wheels for Python 3.14
+fastapi
+uvicorn[standard]
+python-multipart
+websockets
+sqlalchemy
+pydantic
+pydantic-settings
+opencv-python
+numpy
+pillow
+python-dotenv
+aiofiles
+requests
+pyyaml
+pyserial
+rapidocr_onnxruntime
