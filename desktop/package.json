@@ -5,6 +5,10 @@
   "main": "main/index.js",
   "author": "ShinyStarter",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Zard-Labs/shiny-hunter.git"
+  },
   "scripts": {
     "start": "electron .",
     "dev": "electron . --dev",
@@ -24,6 +28,7 @@
     "appId": "com.shinystarter.app",
     "productName": "ShinyStarter",
     "copyright": "Copyright © 2024 ShinyStarter",
+    "publish": null,
     "directories": {
       "output": "dist",
       "buildResources": "resources"
