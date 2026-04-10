@@ -61,7 +61,7 @@
           "arch": ["x64"]
         }
       ],
-      "icon": "resources/icon.ico"
+      "icon": "resources/icon.png"
     },
     "nsis": {
       "oneClick": false,
@@ -70,9 +70,7 @@
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "shortcutName": "ShinyStarter",
-      "deleteAppDataOnUninstall": false,
-      "installerIcon": "resources/icon.ico",
-      "uninstallerIcon": "resources/icon.ico"
+      "deleteAppDataOnUninstall": false
     },
     "portable": {
       "artifactName": "ShinyStarter-Portable-${version}.exe"
