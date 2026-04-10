@@ -2,11 +2,11 @@
 from fastapi import FastAPI, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, HTMLResponse
 from pathlib import Path
 import asyncio
 
-from app.config import settings
+from app.config import settings, get_frontend_dist_path, is_packaged, get_user_data_path
 from app.database import init_db, get_db
 from app.routes import automation, control, statistics, websocket, camera, templates
 from app.services.esp32_manager import esp32_manager
@@ -22,17 +22,24 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# Configure CORS
+# Configure CORS - in desktop mode, allow all origins since Electron loads from localhost
+cors_origins = settings.cors_origins
+if is_packaged():
+    cors_origins = ["*"]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.cors_origins,
+    allow_origins=cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 # Mount static files (encounters directory)
-encounters_dir = Path(__file__).parent.parent / settings.screenshot_directory
+if is_packaged():
+    encounters_dir = get_user_data_path() / settings.screenshot_directory
+else:
+    encounters_dir = Path(__file__).parent.parent / settings.screenshot_directory
 encounters_dir.mkdir(exist_ok=True)
 app.mount("/encounters", StaticFiles(directory=str(encounters_dir)), name="encounters")
 
@@ -148,9 +155,20 @@ async def start_automation_with_task(background_tasks: BackgroundTasks):
     }
 
 
+# ── Frontend SPA Serving ──────────────────────────────────
+# Serve the built React frontend. In packaged desktop mode, the frontend
+# is bundled as static files. The SPA catch-all must be registered AFTER
+# all API routes to avoid intercepting /api/* and /ws/* requests.
+
+_frontend_dist = get_frontend_dist_path()
+_frontend_index = _frontend_dist / "index.html"
+
+
 @app.get("/")
 async def root():
-    """Root endpoint."""
+    """Serve React SPA index.html if available, otherwise return API info."""
+    if _frontend_index.exists():
+        return FileResponse(str(_frontend_index), media_type="text/html")
     return {
         "name": "Shiny Charmander Hunter API",
         "version": "1.0.0",
@@ -176,6 +194,24 @@ async def health_check():
             "automation": game_engine.is_running
         }
     }
+
+
+# Mount React static assets (JS, CSS, images) AFTER all routes
+# This must be last to avoid catching API routes
+if _frontend_dist.exists():
+    app.mount("/assets", StaticFiles(directory=str(_frontend_dist / "assets")), name="frontend-assets")
+    
+    # SPA catch-all: any non-API, non-WS path returns index.html
+    # This handles client-side routing in React
+    @app.get("/{full_path:path}")
+    async def spa_catchall(full_path: str):
+        """Catch-all route for React SPA client-side routing."""
+        # Don't intercept API, WebSocket, docs, or static file paths
+        if full_path.startswith(("api/", "ws", "docs", "openapi", "encounters/")):
+            return None
+        if _frontend_index.exists():
+            return FileResponse(str(_frontend_index), media_type="text/html")
+        return {"error": "Frontend not found"}
 
 
 if __name__ == "__main__":

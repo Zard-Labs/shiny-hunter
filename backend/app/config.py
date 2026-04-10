@@ -1,9 +1,56 @@
 """Configuration management for the application."""
+import os
+import shutil
 import yaml
 from pathlib import Path
 from typing import Dict, Any, List
 from pydantic_settings import BaseSettings
 from pydantic import Field
+
+
+def is_packaged() -> bool:
+    """Check if running inside a packaged desktop app."""
+    return os.environ.get('SHINYSTARTER_PACKAGED', '0') == '1'
+
+
+def get_user_data_path() -> Path:
+    """
+    Get the user data directory for config, database, encounters, etc.
+    
+    In packaged mode: uses SHINYSTARTER_USER_DATA env var (set by Electron)
+    In development: uses the backend directory itself
+    """
+    if is_packaged():
+        user_data = os.environ.get('SHINYSTARTER_USER_DATA', '')
+        if user_data:
+            return Path(user_data)
+    return Path(__file__).parent.parent
+
+
+def ensure_user_data_dirs(base_path: Path):
+    """Create necessary subdirectories in the user data path."""
+    dirs = ['encounters', 'templates', 'logs']
+    for d in dirs:
+        (base_path / d).mkdir(parents=True, exist_ok=True)
+
+
+def get_frontend_dist_path() -> Path:
+    """
+    Resolve the path to the built React frontend dist directory.
+    
+    In packaged mode: looks in resources/frontend-dist (set by electron-builder extraResources)
+    In development: looks in ../frontend/dist
+    """
+    if is_packaged():
+        # PyInstaller bundled: resources are relative to the backend dir
+        # Electron sets SHINYSTARTER_USER_DATA but frontend-dist is in resources
+        resources_path = os.environ.get('SHINYSTARTER_RESOURCES_PATH', '')
+        if resources_path:
+            return Path(resources_path) / 'frontend-dist'
+        # Fallback: try relative to executable
+        return Path(__file__).parent.parent.parent / 'frontend-dist'
+    # Development mode
+    return Path(__file__).parent.parent.parent / 'frontend' / 'dist'
 
 
 class Settings(BaseSettings):
@@ -51,8 +98,30 @@ class Settings(BaseSettings):
 
 
 def load_config() -> Settings:
-    """Load configuration from config.yaml file."""
-    config_path = Path(__file__).parent.parent / "config.yaml"
+    """Load configuration from config.yaml file.
+    
+    In packaged mode, looks for config.yaml in the user data directory.
+    If not found there, copies the default config.yaml.example.
+    """
+    user_data = get_user_data_path()
+    
+    if is_packaged():
+        # Ensure user data directories exist
+        ensure_user_data_dirs(user_data)
+        
+        config_path = user_data / "config.yaml"
+        
+        # Copy default config if user doesn't have one yet
+        if not config_path.exists():
+            default_config = Path(__file__).parent.parent / "config.yaml.example"
+            if default_config.exists():
+                shutil.copy2(default_config, config_path)
+                print(f"Created default config at: {config_path}")
+            else:
+                print(f"Warning: No config.yaml found and no example to copy, using defaults")
+                return Settings()
+    else:
+        config_path = Path(__file__).parent.parent / "config.yaml"
     
     if not config_path.exists():
         print(f"Warning: config.yaml not found at {config_path}, using defaults")

@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ShinyStarter - Loading</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background: #0a0a1a;
+      color: #e0e0ff;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      overflow: hidden;
+      user-select: none;
+      -webkit-app-region: drag;
+    }
+
+    .logo-container {
+      text-align: center;
+      margin-bottom: 32px;
+    }
+
+    .logo-icon {
+      font-size: 64px;
+      margin-bottom: 8px;
+      animation: pulse 2s ease-in-out infinite;
+    }
+
+    .logo-title {
+      font-size: 28px;
+      font-weight: 700;
+      background: linear-gradient(135deg, #00f0ff, #ff00e5);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      letter-spacing: 2px;
+    }
+
+    .logo-subtitle {
+      font-size: 12px;
+      color: #8888aa;
+      margin-top: 4px;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+    }
+
+    .progress-container {
+      width: 280px;
+      margin-bottom: 16px;
+    }
+
+    .progress-bar {
+      height: 3px;
+      background: #1a1a2e;
+      border-radius: 2px;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #00f0ff, #ff00e5);
+      border-radius: 2px;
+      width: 0%;
+      transition: width 0.5s ease;
+    }
+
+    .progress-indeterminate {
+      position: absolute;
+      top: 0;
+      left: -40%;
+      width: 40%;
+      height: 100%;
+      background: linear-gradient(90deg, transparent, #00f0ff, #ff00e5, transparent);
+      animation: indeterminate 1.5s ease-in-out infinite;
+    }
+
+    .status-text {
+      text-align: center;
+      font-size: 13px;
+      color: #8888aa;
+      min-height: 20px;
+      transition: color 0.3s;
+    }
+
+    .status-text.ready {
+      color: #00ff88;
+    }
+
+    .status-text.error {
+      color: #ff4444;
+    }
+
+    .version-text {
+      position: absolute;
+      bottom: 12px;
+      right: 16px;
+      font-size: 10px;
+      color: #444466;
+    }
+
+    /* Decorative corner borders */
+    .corner {
+      position: absolute;
+      width: 20px;
+      height: 20px;
+    }
+    .corner.tl { top: 8px; left: 8px; border-top: 2px solid #00f0ff33; border-left: 2px solid #00f0ff33; }
+    .corner.tr { top: 8px; right: 8px; border-top: 2px solid #ff00e533; border-right: 2px solid #ff00e533; }
+    .corner.bl { bottom: 8px; left: 8px; border-bottom: 2px solid #00f0ff33; border-left: 2px solid #00f0ff33; }
+    .corner.br { bottom: 8px; right: 8px; border-bottom: 2px solid #ff00e533; border-right: 2px solid #ff00e533; }
+
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.05); }
+    }
+
+    @keyframes indeterminate {
+      0% { left: -40%; }
+      100% { left: 100%; }
+    }
+  </style>
+</head>
+<body>
+  <!-- Decorative corners -->
+  <div class="corner tl"></div>
+  <div class="corner tr"></div>
+  <div class="corner bl"></div>
+  <div class="corner br"></div>
+
+  <div class="logo-container">
+    <div class="logo-icon">🌟</div>
+    <div class="logo-title">SHINYSTARTER</div>
+    <div class="logo-subtitle">Automated Shiny Pokemon Hunter</div>
+  </div>
+
+  <div class="progress-container">
+    <div class="progress-bar">
+      <div class="progress-fill" id="progressFill"></div>
+      <div class="progress-indeterminate" id="progressIndeterminate"></div>
+    </div>
+  </div>
+
+  <div class="status-text" id="statusText">Initializing...</div>
+
+  <div class="version-text" id="versionText">v1.0.0</div>
+
+  <script>
+    const statusText = document.getElementById('statusText')
+    const progressFill = document.getElementById('progressFill')
+    const progressIndeterminate = document.getElementById('progressIndeterminate')
+
+    const statusMessages = {
+      'checking': { text: 'Checking port availability...', progress: 10 },
+      'starting': { text: 'Starting backend server...', progress: 25 },
+      'waiting': { text: 'Waiting for backend to be ready...', progress: 50 },
+      'restarting': { text: 'Restarting backend...', progress: 30 },
+      'ready': { text: 'Backend ready — Loading interface...', progress: 100 },
+      'error': { text: 'Error starting backend', progress: 0 },
+      'crashed': { text: 'Backend crashed — Attempting restart...', progress: 20 },
+      'stopping': { text: 'Shutting down...', progress: 0 }
+    }
+
+    // Listen for backend status updates from main process
+    if (window.electronAPI) {
+      window.electronAPI.onBackendStatus(({ status, detail }) => {
+        const config = statusMessages[status] || { text: detail || status, progress: 0 }
+
+        statusText.textContent = detail || config.text
+        statusText.className = 'status-text'
+
+        if (status === 'ready') {
+          statusText.classList.add('ready')
+          progressIndeterminate.style.display = 'none'
+          progressFill.style.width = '100%'
+        } else if (status === 'error') {
+          statusText.classList.add('error')
+          progressIndeterminate.style.display = 'none'
+        } else {
+          progressFill.style.width = config.progress + '%'
+        }
+      })
+
+      // Get and display version
+      window.electronAPI.getVersion().then(version => {
+        document.getElementById('versionText').textContent = `v${version}`
+      })
+    }
+  </script>
+</body>
+</html>

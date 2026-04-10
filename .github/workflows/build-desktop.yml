@@ -1,0 +1,163 @@
+name: Build Desktop App
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      create_release:
+        description: 'Create a GitHub Release'
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+jobs:
+  build-desktop:
+    runs-on: windows-latest
+    
+    steps:
+      # ── Checkout ──────────────────────────────────────
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ── Setup Python ──────────────────────────────────
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install Python dependencies
+        working-directory: backend
+        run: |
+          python -m pip install --upgrade pip setuptools wheel
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      # ── Build Backend (PyInstaller) ───────────────────
+      - name: Build backend with PyInstaller
+        working-directory: backend
+        run: |
+          pyinstaller pyinstaller.spec --noconfirm
+          echo "Backend build complete"
+          dir dist\backend\backend.exe
+
+      - name: Move backend-dist to project root
+        run: |
+          if (Test-Path "backend-dist") { Remove-Item -Recurse -Force "backend-dist" }
+          Move-Item "backend\dist\backend" "backend-dist"
+          Remove-Item -Recurse -Force "backend\build" -ErrorAction SilentlyContinue
+          Remove-Item -Recurse -Force "backend\dist" -ErrorAction SilentlyContinue
+        shell: pwsh
+
+      # ── Setup Node.js ─────────────────────────────────
+      - name: Set up Node.js 18
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      # ── Build Frontend (Vite) ─────────────────────────
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Build frontend
+        working-directory: frontend
+        run: npm run build
+
+      - name: Verify frontend build
+        run: |
+          if (!(Test-Path "frontend\dist\index.html")) {
+            Write-Error "Frontend build failed - index.html not found"
+            exit 1
+          }
+          echo "Frontend build verified"
+          dir frontend\dist
+        shell: pwsh
+
+      # ── Package Desktop App (electron-builder) ────────
+      - name: Install desktop dependencies
+        working-directory: desktop
+        run: npm ci
+
+      - name: Extract version from tag
+        id: version
+        run: |
+          if ("${{ github.ref }}" -match "refs/tags/v(.+)") {
+            $version = $Matches[1]
+            echo "VERSION=$version" >> $env:GITHUB_OUTPUT
+            echo "Detected version: $version"
+            
+            # Update package.json version
+            $pkg = Get-Content "desktop\package.json" | ConvertFrom-Json
+            $pkg.version = $version
+            $pkg | ConvertTo-Json -Depth 10 | Set-Content "desktop\package.json"
+          } else {
+            echo "VERSION=1.0.0-dev" >> $env:GITHUB_OUTPUT
+            echo "No version tag, using 1.0.0-dev"
+          }
+        shell: pwsh
+
+      - name: Build desktop app (NSIS + Portable)
+        working-directory: desktop
+        run: npx electron-builder --win nsis portable
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: List build output
+        run: |
+          echo "=== Build Output ==="
+          dir desktop\dist\*.exe
+        shell: pwsh
+
+      # ── Upload Artifacts ──────────────────────────────
+      - name: Upload NSIS Installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: ShinyStarter-Setup-${{ steps.version.outputs.VERSION }}
+          path: desktop/dist/*Setup*.exe
+          retention-days: 30
+
+      - name: Upload Portable
+        uses: actions/upload-artifact@v4
+        with:
+          name: ShinyStarter-Portable-${{ steps.version.outputs.VERSION }}
+          path: desktop/dist/*Portable*.exe
+          retention-days: 30
+
+      # ── Create GitHub Release (on tag push) ───────────
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && github.event.inputs.create_release == 'true')
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name || format('v{0}', steps.version.outputs.VERSION) }}
+          name: ShinyStarter ${{ steps.version.outputs.VERSION }}
+          draft: true
+          prerelease: false
+          generate_release_notes: true
+          files: |
+            desktop/dist/*Setup*.exe
+            desktop/dist/*Portable*.exe
+          body: |
+            ## ShinyStarter Desktop App ${{ steps.version.outputs.VERSION }}
+            
+            ### Downloads
+            - **Installer** (`ShinyStarter Setup *.exe`) — Full installer with Start Menu/Desktop shortcuts
+            - **Portable** (`ShinyStarter-Portable-*.exe`) — Extract and run, no installation needed
+            
+            ### Requirements
+            - Windows 10/11 (64-bit)
+            - Elgato capture card (for video feed)
+            - ESP32-C6 (for controller emulation)
+            
+            ### What's Included
+            - ✅ Python backend (bundled — no Python installation needed)
+            - ✅ React dashboard (bundled — no Node.js needed)
+            - ✅ All dependencies included
+            
+            > **Note:** Windows Defender may flag the app on first run. Click "More info" → "Run anyway", or add an exclusion for the ShinyStarter folder.
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

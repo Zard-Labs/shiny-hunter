@@ -1,0 +1,76 @@
+{
+  "name": "shinystarter",
+  "version": "1.0.0",
+  "description": "ShinyStarter - Automated Shiny Pokemon Hunter",
+  "main": "main/index.js",
+  "author": "ShinyStarter",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --dev",
+    "build": "electron-builder",
+    "build:nsis": "electron-builder --win nsis",
+    "build:portable": "electron-builder --win portable",
+    "build:all": "electron-builder --win nsis portable"
+  },
+  "dependencies": {
+    "electron-log": "^5.1.0"
+  },
+  "devDependencies": {
+    "electron": "^33.0.0",
+    "electron-builder": "^25.1.0"
+  },
+  "build": {
+    "appId": "com.shinystarter.app",
+    "productName": "ShinyStarter",
+    "copyright": "Copyright © 2024 ShinyStarter",
+    "directories": {
+      "output": "dist",
+      "buildResources": "resources"
+    },
+    "files": [
+      "main/**/*",
+      "preload/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "../backend-dist/",
+        "to": "backend",
+        "filter": ["**/*"]
+      },
+      {
+        "from": "../frontend/dist/",
+        "to": "frontend-dist",
+        "filter": ["**/*"]
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        },
+        {
+          "target": "portable",
+          "arch": ["x64"]
+        }
+      ],
+      "icon": "resources/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "ShinyStarter",
+      "deleteAppDataOnUninstall": false,
+      "installerIcon": "resources/icon.ico",
+      "uninstallerIcon": "resources/icon.ico"
+    },
+    "portable": {
+      "artifactName": "ShinyStarter-Portable-${version}.exe"
+    }
+  }
+}

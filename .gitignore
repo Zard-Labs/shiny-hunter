@@ -63,3 +63,14 @@ backend/config.yaml
 # Plans / internal development notes
 plans/
 esp32/plans/
+
+# Desktop App (Electron) build artifacts
+desktop/node_modules/
+desktop/dist/
+backend-dist/
+backend/build/
+backend/dist/
+backend/*.spec.bak
+
+# PyInstaller
+*.spec.bak
