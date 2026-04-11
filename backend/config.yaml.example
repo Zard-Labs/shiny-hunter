@@ -6,6 +6,7 @@ hardware:
   serial_port: COM3               # Adjust to your serial port (Windows: COMx, Linux: /dev/ttyUSBx)
   baud_rate: 115200
   camera_index: 0                 # 0 = default camera, change if you have multiple
+  crop_mode: "16:9"               # "16:9" = full frame (Switch/modern consoles), "4:3" = crop sides (GBA/DS with black bars)
   connection_retry_timeout: 15
 automation:
   button_hold_duration: 0.1

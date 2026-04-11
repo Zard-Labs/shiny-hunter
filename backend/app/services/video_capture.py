@@ -184,14 +184,20 @@ class VideoCapture:
                 self._recovery_backoff = 1.0
                 self.frame_count += 1
                 
-                # Crop 16:9 to 4:3 (remove black bars from capture card)
+                # Apply crop based on configured mode
+                crop_mode = settings.crop_mode
                 h, w = raw_frame.shape[:2]
-                crop_x = (w - int(h * (4 / 3))) // 2
-                if crop_x > 0:
-                    raw_frame = raw_frame[:, crop_x : w - crop_x]
                 
-                # Resize to standard 640x480
-                frame = cv2.resize(raw_frame, (640, 480))
+                if crop_mode == "4:3":
+                    # Crop 16:9 to 4:3 (remove black bars from GBA/DS capture)
+                    crop_x = (w - int(h * (4 / 3))) // 2
+                    if crop_x > 0:
+                        raw_frame = raw_frame[:, crop_x : w - crop_x]
+                    # Resize to standard 640x480 (4:3)
+                    frame = cv2.resize(raw_frame, (640, 480))
+                else:
+                    # "16:9" — keep full frame, resize to 640x360 (16:9)
+                    frame = cv2.resize(raw_frame, (640, 360))
                 
                 # Create grayscale version for template matching
                 gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)

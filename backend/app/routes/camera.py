@@ -36,6 +36,11 @@ class CameraSelectRequest(BaseModel):
     index: int
 
 
+class CropModeRequest(BaseModel):
+    """Request to set crop mode."""
+    mode: str  # "4:3" or "16:9"
+
+
 def _scan_devices_blocking() -> List[dict]:
     """
     Scan for available camera devices (blocking, runs in thread pool).
@@ -219,6 +224,80 @@ async def save_camera_to_config(request: CameraSelectRequest):
     
     except Exception as e:
         logger.error(f"Error saving camera config: {e}")
+        return {
+            "status": "error",
+            "message": str(e)
+        }
+
+
+@router.get("/crop-mode")
+async def get_crop_mode():
+    """Get the current crop mode setting."""
+    return {
+        "mode": settings.crop_mode
+    }
+
+
+@router.post("/crop-mode")
+async def set_crop_mode(request: CropModeRequest):
+    """
+    Set the crop mode at runtime (takes effect on the next frame).
+    
+    - "4:3": Crop 16:9 to 4:3 (for GBA/DS games with black bars), resize to 640x480
+    - "16:9": Keep full frame (for Switch/modern consoles), resize to 640x360
+    """
+    valid_modes = {"4:3", "16:9"}
+    if request.mode not in valid_modes:
+        return {
+            "status": "error",
+            "message": f"Invalid crop mode '{request.mode}'. Valid: {valid_modes}"
+        }
+    
+    old_mode = settings.crop_mode
+    settings.crop_mode = request.mode
+    logger.info(f"Crop mode changed: {old_mode} -> {request.mode}")
+    
+    return {
+        "status": "success",
+        "message": f"Crop mode set to {request.mode}",
+        "mode": request.mode
+    }
+
+
+@router.post("/crop-mode/save")
+async def save_crop_mode_to_config(request: CropModeRequest):
+    """Save the crop mode to config.yaml for persistence across restarts."""
+    import yaml
+    from pathlib import Path
+    
+    valid_modes = {"4:3", "16:9"}
+    if request.mode not in valid_modes:
+        return {
+            "status": "error",
+            "message": f"Invalid crop mode '{request.mode}'. Valid: {valid_modes}"
+        }
+    
+    config_path = Path(__file__).parent.parent.parent / "config.yaml"
+    
+    try:
+        with open(config_path, 'r') as f:
+            config_data = yaml.safe_load(f)
+        
+        if 'hardware' not in config_data:
+            config_data['hardware'] = {}
+        
+        config_data['hardware']['crop_mode'] = request.mode
+        
+        with open(config_path, 'w') as f:
+            yaml.safe_dump(config_data, f, default_flow_style=False, sort_keys=False)
+        
+        return {
+            "status": "success",
+            "message": f"Crop mode '{request.mode}' saved to config.yaml"
+        }
+    
+    except Exception as e:
+        logger.error(f"Error saving crop mode config: {e}")
         return {
             "status": "error",
             "message": str(e)

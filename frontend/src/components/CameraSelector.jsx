@@ -1,15 +1,62 @@
 import { useState, useEffect } from 'react'
-import { getCameraDevices, selectCamera, saveCameraToConfig } from '../services/api'
+import { getCameraDevices, selectCamera, saveCameraToConfig, getCropMode, setCropMode, saveCropModeToConfig } from '../services/api'
 
 function CameraSelector({ onCameraChange }) {
   const [devices, setDevices] = useState([])
   const [loading, setLoading] = useState(false)
   const [selectedIndex, setSelectedIndex] = useState(0)
   const [saving, setSaving] = useState(false)
+  const [cropMode, setCropModeState] = useState('16:9')
+  const [cropLoading, setCropLoading] = useState(false)
+  const [cropSaving, setCropSaving] = useState(false)
 
   useEffect(() => {
     loadDevices()
+    loadCropMode()
   }, [])
+
+  const loadCropMode = async () => {
+    try {
+      const data = await getCropMode()
+      setCropModeState(data.mode)
+    } catch (error) {
+      console.error('Failed to load crop mode:', error)
+    }
+  }
+
+  const handleCropModeChange = async (mode) => {
+    setCropLoading(true)
+    try {
+      const result = await setCropMode(mode)
+      if (result.status === 'success') {
+        setCropModeState(mode)
+      } else {
+        alert(`Failed to set crop mode: ${result.message || 'Unknown error'}`)
+      }
+    } catch (error) {
+      console.error('Failed to set crop mode:', error)
+      alert('Failed to set crop mode')
+    } finally {
+      setCropLoading(false)
+    }
+  }
+
+  const handleSaveCropMode = async () => {
+    setCropSaving(true)
+    try {
+      const result = await saveCropModeToConfig(cropMode)
+      if (result.status === 'success') {
+        alert(`✅ Saved! Crop mode "${cropMode}" will be used on startup.`)
+      } else {
+        alert(`Failed to save: ${result.message || 'Unknown error'}`)
+      }
+    } catch (error) {
+      console.error('Failed to save crop mode:', error)
+      alert('Failed to save crop mode to config')
+    } finally {
+      setCropSaving(false)
+    }
+  }
 
   const loadDevices = async () => {
     try {
@@ -172,6 +219,85 @@ function CameraSelector({ onCameraChange }) {
         lineHeight: '1.4'
       }}>
         💡 Select your capture card, then click Save to make it permanent
+      </div>
+
+      {/* Crop Mode Section */}
+      <div style={{
+        marginTop: '1rem',
+        paddingTop: '1rem',
+        borderTop: '1px solid var(--border-glow)'
+      }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+          <div className="stat-label" style={{ marginBottom: 0 }}>
+            🖥️ Aspect Ratio
+          </div>
+          <div className="neon-text" style={{ fontSize: '0.9rem', fontWeight: 'bold' }}>
+            {cropMode}
+          </div>
+        </div>
+
+        <select
+          value={cropMode}
+          onChange={(e) => handleCropModeChange(e.target.value)}
+          disabled={cropLoading}
+          style={{
+            width: '100%',
+            padding: '0.75rem',
+            fontSize: '0.9rem',
+            background: 'rgba(0, 0, 0, 0.5)',
+            border: '1px solid var(--accent-magenta)',
+            color: 'var(--text-primary)',
+            borderRadius: '4px',
+            cursor: 'pointer'
+          }}
+        >
+          <option value="16:9" style={{ background: 'var(--bg-secondary)' }}>
+            16:9 — Full Frame (Switch / Modern)
+          </option>
+          <option value="4:3" style={{ background: 'var(--bg-secondary)' }}>
+            4:3 — Crop Sides (GBA / DS with black bars)
+          </option>
+        </select>
+
+        {(cropLoading || cropSaving) && (
+          <div style={{
+            marginTop: '0.5rem',
+            textAlign: 'center',
+            color: 'var(--accent-magenta)',
+            fontSize: '0.85rem'
+          }}>
+            {cropLoading ? 'Applying...' : 'Saving...'}
+          </div>
+        )}
+
+        <button
+          onClick={handleSaveCropMode}
+          disabled={cropLoading || cropSaving}
+          style={{
+            width: '100%',
+            marginTop: '0.5rem',
+            padding: '0.5rem',
+            background: 'rgba(0, 255, 0, 0.1)',
+            border: '1px solid var(--accent-green)',
+            color: 'var(--accent-green)',
+            borderRadius: '4px',
+            cursor: 'pointer',
+            fontSize: '0.75rem',
+            fontFamily: 'inherit',
+            fontWeight: 'bold'
+          }}
+        >
+          💾 Save Aspect Ratio
+        </button>
+
+        <div style={{
+          marginTop: '0.5rem',
+          fontSize: '0.7rem',
+          color: 'var(--accent-yellow)',
+          lineHeight: '1.4'
+        }}>
+          ⚠️ Changing aspect ratio requires recapturing templates &amp; recalibrating detection zones
+        </div>
       </div>
     </div>
   )

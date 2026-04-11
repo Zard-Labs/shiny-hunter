@@ -107,6 +107,22 @@ export const getCurrentCamera = async () => {
   return response.data
 }
 
+// Crop Mode
+export const getCropMode = async () => {
+  const response = await api.get('/api/camera/crop-mode')
+  return response.data
+}
+
+export const setCropMode = async (mode) => {
+  const response = await api.post('/api/camera/crop-mode', { mode })
+  return response.data
+}
+
+export const saveCropModeToConfig = async (mode) => {
+  const response = await api.post('/api/camera/crop-mode/save', { mode })
+  return response.data
+}
+
 // Template Management
 export const getTemplateStatus = async () => {
   const response = await api.get('/api/templates/status')

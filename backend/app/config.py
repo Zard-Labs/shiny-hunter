@@ -64,6 +64,7 @@ class Settings(BaseSettings):
     serial_port: str = "COM6"
     baud_rate: int = 115200
     camera_index: int = 0
+    crop_mode: str = "16:9"  # "4:3" (crop sides for GBA/DS) or "16:9" (full frame for Switch)
     connection_retry_timeout: int = 15
     
     # Automation settings
@@ -143,6 +144,7 @@ def load_config() -> Settings:
         flat_config['serial_port'] = hw.get('serial_port', 'COM6')
         flat_config['baud_rate'] = hw.get('baud_rate', 115200)
         flat_config['camera_index'] = hw.get('camera_index', 0)
+        flat_config['crop_mode'] = hw.get('crop_mode', '16:9')
         flat_config['connection_retry_timeout'] = hw.get('connection_retry_timeout', 15)
     
     # Automation
