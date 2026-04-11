@@ -19,7 +19,7 @@ from app.utils.logger import logger
 app = FastAPI(
     title="Shiny Charmander Hunter",
     description="Automated shiny hunting system for Pokemon Red on Switch",
-    version="1.1.0"
+    version="1.1.1"
 )
 
 # Configure CORS - in desktop mode, allow all origins since Electron loads from localhost
