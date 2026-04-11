@@ -57,7 +57,7 @@ class Settings(BaseSettings):
     """Application settings loaded from config.yaml."""
     
     # Hardware settings
-    esp32_ip: str = "192.168.4.1"
+    esp32_ip: str = "shinystarter.local"
     esp32_port: int = 80
     esp32_websocket_port: int = 81
     communication_mode: str = "wifi"
@@ -136,7 +136,7 @@ def load_config() -> Settings:
     # Hardware
     if 'hardware' in config_data:
         hw = config_data['hardware']
-        flat_config['esp32_ip'] = hw.get('esp32_ip', '192.168.4.1')
+        flat_config['esp32_ip'] = hw.get('esp32_ip', 'shinystarter.local')
         flat_config['esp32_port'] = hw.get('esp32_port', 80)
         flat_config['esp32_websocket_port'] = hw.get('esp32_websocket_port', 81)
         flat_config['communication_mode'] = hw.get('communication_mode', 'wifi')

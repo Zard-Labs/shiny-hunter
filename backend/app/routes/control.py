@@ -1,9 +1,21 @@
 """Manual control endpoints for testing ESP32."""
+import yaml
+from pathlib import Path
 from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel
+from typing import Optional
 
+from app.config import settings, get_user_data_path, is_packaged
 from app.schemas import ButtonCommand
 from app.services.esp32_manager import esp32_manager
 from app.utils.logger import logger
+
+
+class ESP32ConfigUpdate(BaseModel):
+    """Request to update ESP32 connection settings."""
+    ip: str
+    port: Optional[int] = None
+    save: bool = False
 
 
 router = APIRouter(prefix="/api/control", tags=["control"])
@@ -89,4 +101,81 @@ async def disconnect_esp32():
     
     except Exception as e:
         logger.error(f"Error disconnecting from ESP32: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/esp32/config")
+async def get_esp32_config():
+    """Get current ESP32 connection configuration."""
+    return {
+        "ip": settings.esp32_ip,
+        "port": settings.esp32_port,
+        "communication_mode": settings.communication_mode,
+        "connected": esp32_manager.connected
+    }
+
+
+@router.put("/esp32/config")
+async def update_esp32_config(config: ESP32ConfigUpdate):
+    """
+    Update ESP32 IP/hostname and optionally save to config.yaml.
+    
+    Disconnects from current ESP32, updates the address, and attempts to reconnect.
+    If save=true, persists the new IP/port to config.yaml for future startups.
+    """
+    try:
+        ip = config.ip.strip()
+        port = config.port
+        
+        if not ip:
+            raise HTTPException(status_code=400, detail="IP address or hostname is required")
+        
+        # Attempt to connect with the new IP
+        success = esp32_manager.update_ip(ip, port)
+        
+        # Save to config.yaml if requested
+        if config.save:
+            if is_packaged():
+                config_path = get_user_data_path() / "config.yaml"
+            else:
+                config_path = Path(__file__).parent.parent.parent / "config.yaml"
+            
+            try:
+                if config_path.exists():
+                    with open(config_path, 'r') as f:
+                        config_data = yaml.safe_load(f) or {}
+                else:
+                    config_data = {}
+                
+                if 'hardware' not in config_data:
+                    config_data['hardware'] = {}
+                
+                config_data['hardware']['esp32_ip'] = ip
+                if port is not None:
+                    config_data['hardware']['esp32_port'] = port
+                
+                with open(config_path, 'w') as f:
+                    yaml.safe_dump(config_data, f, default_flow_style=False, sort_keys=False)
+                
+                logger.info(f"ESP32 config saved to {config_path}")
+            except Exception as e:
+                logger.error(f"Failed to save config: {e}")
+                # Don't fail the whole request if save fails
+        
+        return {
+            "status": "success" if success else "connection_failed",
+            "connected": success,
+            "ip": settings.esp32_ip,
+            "port": settings.esp32_port,
+            "saved": config.save,
+            "message": (
+                f"Connected to ESP32 at {ip}" if success
+                else f"ESP32 address updated to {ip} but connection failed"
+            )
+        }
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating ESP32 config: {e}")
         raise HTTPException(status_code=500, detail=str(e))

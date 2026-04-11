@@ -57,6 +57,16 @@ export const getESP32Status = async () => {
   return response.data
 }
 
+export const getESP32Config = async () => {
+  const response = await api.get('/api/control/esp32/config')
+  return response.data
+}
+
+export const updateESP32Config = async (config) => {
+  const response = await api.put('/api/control/esp32/config', config)
+  return response.data
+}
+
 // Calibration
 export const saveZone = (zoneType, coordinates) =>
   api.post('/api/calibration/zone', { zone_type: zoneType, coordinates })

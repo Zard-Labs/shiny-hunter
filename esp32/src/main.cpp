@@ -22,6 +22,7 @@
 #include <WiFi.h>
 #include <WebServer.h>
 #include <DNSServer.h>
+#include <ESPmDNS.h>
 #include <Preferences.h>
 #include <ArduinoJson.h>
 #include "switch_ESP32.h"
@@ -29,6 +30,7 @@
 // ==================== Configuration ====================
 #define AP_SSID          "ShinyStarter-Setup"
 #define AP_PASSWORD      ""                    // Open network for easy setup
+#define MDNS_HOSTNAME    "shinystarter"        // Reachable at shinystarter.local
 #define WIFI_CONNECT_TIMEOUT_MS  15000         // 15 seconds to connect
 #define WIFI_RECONNECT_INTERVAL  10000         // Check every 10 seconds
 #define DNS_PORT         53
@@ -124,6 +126,15 @@ bool connectToWiFi(const String& ssid, const String& password) {
         Serial.printf("   SSID: %s\n", ssid.c_str());
         Serial.printf("   IP Address: %s\n", IP.toString().c_str());
         Serial.printf("   Signal Strength: %d dBm\n", WiFi.RSSI());
+        
+        // Start mDNS responder so device is reachable at shinystarter.local
+        if (MDNS.begin(MDNS_HOSTNAME)) {
+            MDNS.addService("http", "tcp", HTTP_PORT);
+            Serial.printf("   mDNS: http://%s.local\n", MDNS_HOSTNAME);
+        } else {
+            Serial.println("   [WARN] mDNS failed to start");
+        }
+        
         return true;
     } else {
         Serial.println("\n[FAIL] WiFi connection failed");

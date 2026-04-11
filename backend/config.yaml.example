@@ -1,5 +1,5 @@
 hardware:
-  esp32_ip: 192.168.4.1          # Set to your ESP32 IP after WiFi setup (check serial monitor)
+  esp32_ip: shinystarter.local   # mDNS hostname (or use raw IP from serial monitor)
   esp32_port: 80
   esp32_websocket_port: 81
   communication_mode: wifi        # 'wifi' or 'serial'

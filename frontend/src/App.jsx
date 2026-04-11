@@ -6,6 +6,7 @@ import HistoryTable from './components/HistoryTable'
 import StatusDisplay from './components/StatusDisplay'
 import CalibrationModal from './components/CalibrationModal'
 import CameraSelector from './components/CameraSelector'
+import ESP32Config from './components/ESP32Config'
 import TemplateCapturePanel from './components/TemplateCapturePanel'
 import HuntSelector from './components/HuntSelector'
 import useWebSocket from './hooks/useWebSocket.jsx'
@@ -97,6 +98,7 @@ function App() {
       <div className="main-layout">
         <div className="left-panel">
           <CameraSelector onCameraChange={fetchData} />
+          <ESP32Config />
           <TemplateCapturePanel />
           <ControlPanel
             isRunning={automationStatus.is_running}

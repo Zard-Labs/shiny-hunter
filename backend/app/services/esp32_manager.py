@@ -69,6 +69,34 @@ class ESP32Manager:
         self.connected = False
         logger.info("Disconnected from ESP32-S3")
     
+    def update_ip(self, ip: str, port: int = None) -> bool:
+        """
+        Update the ESP32 IP/hostname at runtime, then attempt to reconnect.
+        
+        Args:
+            ip: New IP address or hostname (e.g., '192.168.1.105' or 'shinystarter.local')
+            port: New port (default: keep current)
+        
+        Returns:
+            True if reconnected successfully, False otherwise
+        """
+        # Disconnect from current
+        if self.connected:
+            self.disconnect()
+        
+        # Update settings
+        settings.esp32_ip = ip
+        if port is not None:
+            settings.esp32_port = port
+        
+        # Rebuild base URL
+        if self.mode == "wifi":
+            self.base_url = f"http://{settings.esp32_ip}:{settings.esp32_port}"
+            logger.info(f"ESP32 address updated to: {self.base_url}")
+        
+        # Attempt to connect
+        return self.connect()
+    
     def send_button(self, button: str, hold: float = None, wait: float = None) -> bool:
         """
         Send button command to ESP32-S3.
