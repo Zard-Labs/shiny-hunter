@@ -8,7 +8,7 @@ import asyncio
 
 from app.config import settings, get_frontend_dist_path, is_packaged, get_user_data_path
 from app.database import init_db, get_db
-from app.routes import automation, control, statistics, websocket, camera, templates
+from app.routes import automation, control, statistics, websocket, camera, templates, calibration
 from app.services.esp32_manager import esp32_manager
 from app.services.video_capture import video_capture
 from app.services.opencv_detector import opencv_detector
@@ -19,7 +19,7 @@ from app.utils.logger import logger
 app = FastAPI(
     title="Shiny Charmander Hunter",
     description="Automated shiny hunting system for Pokemon Red on Switch",
-    version="1.1.1"
+    version="1.3.0"
 )
 
 # Configure CORS - in desktop mode, allow all origins since Electron loads from localhost
@@ -50,6 +50,7 @@ app.include_router(statistics.router)
 app.include_router(websocket.router)
 app.include_router(camera.router)
 app.include_router(templates.router)
+app.include_router(calibration.router)
 
 # Background task for running automation
 automation_task = None

@@ -8,7 +8,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 
 from app.services.video_capture import video_capture
-from app.config import settings
+from app.config import settings, is_packaged, get_user_data_path
 from app.utils.logger import logger
 
 
@@ -203,11 +203,17 @@ async def save_camera_to_config(request: CameraSelectRequest):
     import yaml
     from pathlib import Path
     
-    config_path = Path(__file__).parent.parent.parent / "config.yaml"
+    if is_packaged():
+        config_path = get_user_data_path() / "config.yaml"
+    else:
+        config_path = Path(__file__).parent.parent.parent / "config.yaml"
     
     try:
-        with open(config_path, 'r') as f:
-            config_data = yaml.safe_load(f)
+        if config_path.exists():
+            with open(config_path, 'r') as f:
+                config_data = yaml.safe_load(f) or {}
+        else:
+            config_data = {}
         
         if 'hardware' not in config_data:
             config_data['hardware'] = {}
@@ -277,11 +283,17 @@ async def save_crop_mode_to_config(request: CropModeRequest):
             "message": f"Invalid crop mode '{request.mode}'. Valid: {valid_modes}"
         }
     
-    config_path = Path(__file__).parent.parent.parent / "config.yaml"
+    if is_packaged():
+        config_path = get_user_data_path() / "config.yaml"
+    else:
+        config_path = Path(__file__).parent.parent.parent / "config.yaml"
     
     try:
-        with open(config_path, 'r') as f:
-            config_data = yaml.safe_load(f)
+        if config_path.exists():
+            with open(config_path, 'r') as f:
+                config_data = yaml.safe_load(f) or {}
+        else:
+            config_data = {}
         
         if 'hardware' not in config_data:
             config_data['hardware'] = {}

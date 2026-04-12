@@ -90,6 +90,7 @@ hiddenimports = [
     'app.routes.websocket',
     'app.routes.camera',
     'app.routes.templates',
+    'app.routes.calibration',
     'app.services',
     'app.services.esp32_manager',
     'app.services.game_engine',

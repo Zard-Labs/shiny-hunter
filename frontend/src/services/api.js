@@ -68,18 +68,18 @@ export const updateESP32Config = async (config) => {
 }
 
 // Calibration
-export const saveZone = (zoneType, coordinates) =>
-  api.post('/api/calibration/zone', { zone_type: zoneType, coordinates })
-
-export const uploadTemplate = (formData) =>
-  api.post('/api/calibration/template', formData, {
-    headers: { 'Content-Type': 'multipart/form-data' }
-  })
+export const saveZone = async (zoneType, coordinates) => {
+  const response = await api.post('/api/calibration/zone', { zone_type: zoneType, coordinates })
+  return response.data
+}
 
 export const getCurrentCalibration = async () => {
   const response = await api.get('/api/calibration/current')
   return response.data
 }
+
+export const getCalibrationSnapshotUrl = () =>
+  `${API_BASE_URL}/api/calibration/snapshot`
 
 // Configuration
 export const getConfig = async () => {
