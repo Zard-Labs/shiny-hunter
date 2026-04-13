@@ -37,6 +37,7 @@ class OpenCVDetector:
     def __init__(self):
         self.templates: Dict[str, Optional[np.ndarray]] = {}
         self._ocr_engine = None  # Lazy-loaded RapidOCR engine
+        self._nature_debug_counter = 0  # Counter for debug image filenames
         
         # Color bounds for shiny detection (HSV)
         self.lower_yellow = np.array([20, 100, 150])
@@ -246,6 +247,56 @@ class OpenCVDetector:
         
         return 'Unknown'
     
+    def _save_nature_debug(self, roi: np.ndarray, scaled: np.ndarray,
+                           reason: str, ocr_result=None, full_text: str = ""):
+        """
+        Save debug images and log OCR details when nature detection fails.
+        
+        Saves the raw ROI and upscaled image to encounters/debug/ so you can
+        visually inspect what the OCR is working with.
+        
+        Args:
+            roi: The raw cropped region of interest
+            scaled: The upscaled image sent to OCR
+            reason: Why detection failed (e.g., 'no_text', 'no_pattern', 'exception')
+            ocr_result: Raw OCR result list (optional)
+            full_text: Joined OCR text (optional)
+        """
+        try:
+            self._nature_debug_counter += 1
+            debug_dir = Path(__file__).parent.parent.parent / 'encounters' / 'debug'
+            debug_dir.mkdir(parents=True, exist_ok=True)
+            
+            counter = self._nature_debug_counter
+            
+            # Save raw ROI crop
+            roi_path = debug_dir / f"nature_{counter:04d}_roi.png"
+            cv2.imwrite(str(roi_path), roi)
+            
+            # Save upscaled image (what OCR actually sees)
+            scaled_path = debug_dir / f"nature_{counter:04d}_scaled.png"
+            cv2.imwrite(str(scaled_path), scaled)
+            
+            # Log details at WARNING level so they always appear
+            logger.warning(
+                f"[Nature Debug #{counter}] reason={reason} | "
+                f"roi_size={roi.shape[1]}x{roi.shape[0]} | "
+                f"scaled_size={scaled.shape[1]}x{scaled.shape[0]} | "
+                f"ocr_text='{full_text}' | "
+                f"saved: {roi_path.name}, {scaled_path.name}"
+            )
+            
+            # Log individual OCR entries with confidence scores
+            if ocr_result:
+                for i, item in enumerate(ocr_result):
+                    text = item[1]
+                    conf = item[2] if len(item) > 2 else 'N/A'
+                    logger.warning(
+                        f"  OCR entry[{i}]: text='{text}' confidence={conf}"
+                    )
+        except Exception as e:
+            logger.error(f"Failed to save nature debug info: {e}")
+    
     def detect_nature(self, color_frame: np.ndarray) -> str:
         """
         Detect Pokemon nature using OCR on the TRAINER MEMO text region.
@@ -260,6 +311,7 @@ class OpenCVDetector:
             Nature name (capitalized, e.g., 'Naughty') or 'Unknown'
         """
         if self.ocr_engine is False:
+            logger.warning("[Nature] OCR engine not available — returning Unknown")
             return 'Unknown'
         
         try:
@@ -270,8 +322,27 @@ class OpenCVDetector:
             lx = nz.get('lower_x', 350)
             ly = nz.get('lower_y', 380)
             
+            h, w = color_frame.shape[:2]
+            logger.info(
+                f"[Nature] Frame size: {w}x{h} | "
+                f"Zone: ({ux},{uy})->({lx},{ly}) | "
+                f"crop_mode={settings.crop_mode}"
+            )
+            
+            # Bounds check — clamp to frame dimensions
+            uy_c = min(uy, h)
+            ly_c = min(ly, h)
+            ux_c = min(ux, w)
+            lx_c = min(lx, w)
+            if uy_c >= ly_c or ux_c >= lx_c:
+                logger.warning(
+                    f"[Nature] Zone out of bounds! Clamped: "
+                    f"({ux_c},{uy_c})->({lx_c},{ly_c}) from frame {w}x{h}"
+                )
+                return 'Unknown'
+            
             # Crop the TRAINER MEMO text region
-            roi = color_frame[uy:ly, ux:lx]
+            roi = color_frame[uy_c:ly_c, ux_c:lx_c]
             
             # Scale up 2x with linear interpolation for better OCR on pixel art
             scaled = cv2.resize(roi, None, fx=2, fy=2, interpolation=cv2.INTER_LINEAR)
@@ -280,19 +351,27 @@ class OpenCVDetector:
             result, elapse = self.ocr_engine(scaled)
             
             if result is None:
-                logger.debug("OCR returned no text for nature detection")
+                logger.info("[Nature] OCR returned no text")
+                self._save_nature_debug(roi, scaled, 'no_text')
                 return 'Unknown'
             
             # result is a list of [box, text, confidence]
             texts = [item[1] for item in result]
             full_text = ' '.join(texts)
-            logger.debug(f"OCR text from nature zone: '{full_text}'")
+            logger.info(f"[Nature] OCR text: '{full_text}'")
             
             # Try to find the word before 'nature' (case-insensitive)
             match = re.search(r'(\w+)\s+nature', full_text, re.IGNORECASE)
             if match:
                 nature_word = match.group(1)
-                return self._fuzzy_match_nature(nature_word)
+                matched_nature = self._fuzzy_match_nature(nature_word)
+                logger.info(f"[Nature] Regex matched word='{nature_word}' -> '{matched_nature}'")
+                if matched_nature == 'Unknown':
+                    self._save_nature_debug(
+                        roi, scaled, f'fuzzy_fail_regex (word={nature_word})',
+                        result, full_text
+                    )
+                return matched_nature
             
             # Fallback: find the text right before the "nature" entry
             # Sometimes OCR splits them into separate entries
@@ -301,13 +380,24 @@ class OpenCVDetector:
                 if text == 'nature' or text == 'nature.':
                     if i > 0:
                         nature_word = result[i - 1][1]
-                        return self._fuzzy_match_nature(nature_word)
+                        matched_nature = self._fuzzy_match_nature(nature_word)
+                        logger.info(
+                            f"[Nature] Fallback matched word='{nature_word}' -> '{matched_nature}'"
+                        )
+                        if matched_nature == 'Unknown':
+                            self._save_nature_debug(
+                                roi, scaled,
+                                f'fuzzy_fail_fallback (word={nature_word})',
+                                result, full_text
+                            )
+                        return matched_nature
             
-            logger.debug(f"No nature pattern found in OCR text: '{full_text}'")
+            logger.info(f"[Nature] No 'nature' keyword found in OCR text: '{full_text}'")
+            self._save_nature_debug(roi, scaled, 'no_pattern', result, full_text)
             return 'Unknown'
         
         except Exception as e:
-            logger.error(f"Error detecting nature via OCR: {e}")
+            logger.error(f"[Nature] Exception during OCR: {e}")
             return 'Unknown'
 
 
