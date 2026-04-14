@@ -1,13 +1,17 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { getESP32Status } from '../services/api'
+
+// Poll ESP32 status at a relaxed interval (not critical real-time data)
+const ESP32_POLL_MS = 30000
 
 function StatusDisplay({ status, connected }) {
   const [esp32Status, setEsp32Status] = useState({ connected: false, status: 'unknown', mode: 'unknown' })
   const [logs, setLogs] = useState([])
+  const fetchingRef = useRef(false)
 
   useEffect(() => {
     fetchESP32Status()
-    const interval = setInterval(fetchESP32Status, 5000)
+    const interval = setInterval(fetchESP32Status, ESP32_POLL_MS)
     return () => clearInterval(interval)
   }, [])
 
@@ -18,11 +22,15 @@ function StatusDisplay({ status, connected }) {
   }, [status.state])
 
   const fetchESP32Status = async () => {
+    if (fetchingRef.current) return
+    fetchingRef.current = true
     try {
       const data = await getESP32Status()
       setEsp32Status(data)
     } catch (error) {
       setEsp32Status({ connected: false, status: 'error', mode: 'unknown' })
+    } finally {
+      fetchingRef.current = false
     }
   }
 

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import LiveFeed from './components/LiveFeed'
 import StatisticsPanel from './components/StatisticsPanel'
 import ControlPanel from './components/ControlPanel'
@@ -12,6 +12,9 @@ import HuntSelector from './components/HuntSelector'
 import useWebSocket from './hooks/useWebSocket.jsx'
 import { getAutomationStatus, getStatistics, getHistory } from './services/api'
 import './styles/App.css'
+
+// Polling interval when WebSocket is disconnected (fallback only)
+const FALLBACK_POLL_MS = 15000
 
 function App() {
   const [automationStatus, setAutomationStatus] = useState({
@@ -32,8 +35,13 @@ function App() {
   const [selectedHuntId, setSelectedHuntId] = useState(null) // null = active hunt
   const { connected, lastMessage } = useWebSocket()
 
-  // Fetch data with optional hunt filter
+  // In-flight guard to prevent overlapping requests
+  const fetchingRef = useRef(false)
+
+  // Fetch data with optional hunt filter — guarded against overlapping calls
   const fetchData = useCallback(async () => {
+    if (fetchingRef.current) return // skip if already in-flight
+    fetchingRef.current = true
     try {
       const [status, stats, historyData] = await Promise.all([
         getAutomationStatus(),
@@ -45,15 +53,33 @@ function App() {
       setHistory(historyData.encounters || [])
     } catch (error) {
       console.error('Error fetching data:', error)
+    } finally {
+      fetchingRef.current = false
     }
   }, [selectedHuntId])
 
-  // Fetch initial data and poll
+  // Fetch once on mount and when hunt changes
   useEffect(() => {
     fetchData()
-    const interval = setInterval(fetchData, 5000)
-    return () => clearInterval(interval)
   }, [fetchData])
+
+  // Fallback polling — ONLY when WebSocket is disconnected
+  useEffect(() => {
+    if (connected) return // WebSocket provides real-time updates, no polling needed
+
+    const interval = setInterval(fetchData, FALLBACK_POLL_MS)
+    return () => clearInterval(interval)
+  }, [connected, fetchData])
+
+  // Sync data when WebSocket reconnects
+  const prevConnectedRef = useRef(false)
+  useEffect(() => {
+    if (connected && !prevConnectedRef.current) {
+      // Just reconnected — do one fetch to sync state
+      fetchData()
+    }
+    prevConnectedRef.current = connected
+  }, [connected, fetchData])
 
   // Handle WebSocket messages
   useEffect(() => {

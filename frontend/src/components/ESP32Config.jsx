@@ -1,5 +1,8 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { getESP32Config, updateESP32Config } from '../services/api'
+
+// Relaxed poll interval — config rarely changes outside user action
+const CONFIG_POLL_MS = 30000
 
 function ESP32Config() {
   const [ip, setIp] = useState('')
@@ -8,18 +11,18 @@ function ESP32Config() {
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState(null)
+  const fetchingRef = useRef(false)
 
+  // Fetch once on mount, then poll at relaxed interval
   useEffect(() => {
     loadConfig()
-  }, [])
-
-  // Poll connection status every 10 seconds
-  useEffect(() => {
-    const interval = setInterval(loadConfig, 10000)
+    const interval = setInterval(loadConfig, CONFIG_POLL_MS)
     return () => clearInterval(interval)
   }, [])
 
   const loadConfig = async () => {
+    if (fetchingRef.current) return
+    fetchingRef.current = true
     try {
       const data = await getESP32Config()
       setIp(data.ip || 'shinystarter.local')
@@ -27,6 +30,8 @@ function ESP32Config() {
       setConnected(data.connected || false)
     } catch (error) {
       console.error('Failed to load ESP32 config:', error)
+    } finally {
+      fetchingRef.current = false
     }
   }
 

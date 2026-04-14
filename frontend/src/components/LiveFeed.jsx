@@ -3,7 +3,7 @@ import useWebSocket from '../hooks/useWebSocket.jsx'
 
 function LiveFeed() {
   const canvasRef = useRef(null)
-  const { videoFrame, annotations } = useWebSocket()
+  const { subscribeToFrames, subscribeToAnnotations } = useWebSocket()
   const [fps, setFps] = useState(0)
   const fpsCounter = useRef(0)
   const fpsInterval = useRef(null)
@@ -15,7 +15,10 @@ function LiveFeed() {
   const canvasSizeRef = useRef({ width: 0, height: 0 })
   // Use requestAnimationFrame for smooth rendering
   const rafRef = useRef(null)
-  const pendingFrameRef = useRef(null)
+  // Track whether we've received at least one frame (for placeholder)
+  const [hasFrame, setHasFrame] = useState(false)
+  // Store latest annotations in a ref (not state) to avoid re-renders
+  const annotationsRef = useRef(null)
 
   // Initialize reusable Image object
   useEffect(() => {
@@ -64,7 +67,8 @@ function LiveFeed() {
 
     ctx.drawImage(img, 0, 0)
 
-    // Draw detection zones from annotations (sent separately at lower frequency)
+    // Draw detection zones from annotations (stored in ref, updated at ~2/sec)
+    const annotations = annotationsRef.current
     if (annotations) {
       if (annotations.shiny_zone) {
         const zone = annotations.shiny_zone
@@ -108,32 +112,50 @@ function LiveFeed() {
     }
 
     fpsCounter.current++
-  }, [annotations])
+  }, [])
 
-  // Handle new video frame (Blob from binary WebSocket)
+  // Subscribe to video frames via callback — no React state involved
   useEffect(() => {
-    if (!videoFrame || !imgRef.current) return
+    const handleFrame = (blob) => {
+      if (!imgRef.current) return
 
-    // Create object URL from Blob
-    const url = URL.createObjectURL(videoFrame)
+      // Create object URL from Blob
+      const url = URL.createObjectURL(blob)
 
-    // Set up onload to render when image is decoded
-    imgRef.current.onload = () => {
-      // Revoke previous URL to free memory
-      if (prevUrlRef.current) {
-        URL.revokeObjectURL(prevUrlRef.current)
+      // Set up onload to render when image is decoded
+      imgRef.current.onload = () => {
+        // Revoke previous URL to free memory
+        if (prevUrlRef.current) {
+          URL.revokeObjectURL(prevUrlRef.current)
+        }
+        prevUrlRef.current = url
+
+        // Show canvas once we have at least one frame
+        if (!hasFrame) setHasFrame(true)
+
+        // Use requestAnimationFrame for optimal render timing
+        if (rafRef.current) {
+          cancelAnimationFrame(rafRef.current)
+        }
+        rafRef.current = requestAnimationFrame(renderFrame)
       }
-      prevUrlRef.current = url
 
-      // Use requestAnimationFrame for optimal render timing
-      if (rafRef.current) {
-        cancelAnimationFrame(rafRef.current)
-      }
-      rafRef.current = requestAnimationFrame(renderFrame)
+      imgRef.current.src = url
     }
 
-    imgRef.current.src = url
-  }, [videoFrame, renderFrame])
+    const unsubscribe = subscribeToFrames(handleFrame)
+    return unsubscribe
+  }, [subscribeToFrames, renderFrame, hasFrame])
+
+  // Subscribe to annotations via callback — stored in ref, drawn on next frame
+  useEffect(() => {
+    const handleAnnotations = (data) => {
+      annotationsRef.current = data
+    }
+
+    const unsubscribe = subscribeToAnnotations(handleAnnotations)
+    return unsubscribe
+  }, [subscribeToAnnotations])
 
   return (
     <div className="panel live-feed">
@@ -165,7 +187,7 @@ function LiveFeed() {
             display: 'block'
           }}
         />
-        {!videoFrame && (
+        {!hasFrame && (
           <div style={{
             position: 'absolute',
             top: '50%',

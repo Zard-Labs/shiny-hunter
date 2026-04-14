@@ -1,11 +1,18 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { getHunts } from '../services/api'
+
+// Relaxed poll — hunts list only changes on explicit user action (new hunt)
+const HUNTS_POLL_MS = 30000
 
 function HuntSelector({ selectedHuntId, onHuntChange }) {
   const [hunts, setHunts] = useState([])
   const [loading, setLoading] = useState(false)
+  const fetchingRef = useRef(false)
+  const prevHuntIdRef = useRef(selectedHuntId)
 
   const fetchHunts = async () => {
+    if (fetchingRef.current) return
+    fetchingRef.current = true
     setLoading(true)
     try {
       const data = await getHunts()
@@ -14,19 +21,23 @@ function HuntSelector({ selectedHuntId, onHuntChange }) {
       console.error('Failed to fetch hunts:', error)
     } finally {
       setLoading(false)
+      fetchingRef.current = false
     }
   }
 
+  // Fetch on mount + relaxed polling
   useEffect(() => {
     fetchHunts()
-    // Refresh hunts list every 10s in case a new hunt is created
-    const interval = setInterval(fetchHunts, 10000)
+    const interval = setInterval(fetchHunts, HUNTS_POLL_MS)
     return () => clearInterval(interval)
   }, [])
 
-  // Also refresh when the selected hunt changes (e.g. after reset)
+  // Only re-fetch when selectedHuntId actually changes (e.g. after reset)
   useEffect(() => {
-    fetchHunts()
+    if (prevHuntIdRef.current !== selectedHuntId) {
+      prevHuntIdRef.current = selectedHuntId
+      fetchHunts()
+    }
   }, [selectedHuntId])
 
   const formatDate = (dateStr) => {

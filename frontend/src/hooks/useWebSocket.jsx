@@ -10,6 +10,8 @@
  * - Fast reconnect with exponential backoff (500ms → 10s max)
  * - Client-side ping/keepalive every 5 seconds
  * - Visibility API handling (pauses on tab hide)
+ * - Video frames & annotations bypass React state (ref + callback)
+ *   to avoid 30fps re-renders of the entire component tree
  */
 import { createContext, useContext, useEffect, useState, useRef, useCallback } from 'react'
 
@@ -25,13 +27,20 @@ const WebSocketContext = createContext(null)
 
 /**
  * Provider component - wraps the app and manages a single WebSocket connection.
+ *
+ * Video frames and annotations are delivered via ref-based callbacks
+ * instead of React state, so only subscribing components (LiveFeed)
+ * update — the rest of the tree is untouched.
  */
 export function WebSocketProvider({ children }) {
   const [connected, setConnected] = useState(false)
   const [lastMessage, setLastMessage] = useState(null)
-  // videoFrame is now a Blob (binary JPEG), not a base64 object
-  const [videoFrame, setVideoFrame] = useState(null)
-  const [annotations, setAnnotations] = useState(null)
+
+  // --- Ref-based subscribers for high-frequency data ---
+  // Subscribers are Sets of callbacks; adding/removing is O(1).
+  const frameSubscribers = useRef(new Set())
+  const annotationSubscribers = useRef(new Set())
+
   const wsRef = useRef(null)
   const reconnectTimeoutRef = useRef(null)
   const reconnectDelayRef = useRef(RECONNECT_MIN_MS)
@@ -72,8 +81,11 @@ export function WebSocketProvider({ children }) {
         if (!mountedRef.current) return
         
         // Binary message = raw JPEG video frame
+        // Deliver directly to subscribers — NO React state update
         if (event.data instanceof Blob) {
-          setVideoFrame(event.data)
+          for (const cb of frameSubscribers.current) {
+            try { cb(event.data) } catch (_) { /* subscriber error */ }
+          }
           return
         }
         
@@ -82,7 +94,10 @@ export function WebSocketProvider({ children }) {
           const message = JSON.parse(event.data)
           
           if (message.type === 'annotations') {
-            setAnnotations(message.data)
+            // Deliver directly to subscribers — NO React state update
+            for (const cb of annotationSubscribers.current) {
+              try { cb(message.data) } catch (_) { /* subscriber error */ }
+            }
           } else if (message.type === 'pong') {
             // Keepalive response — connection is healthy
           } else {
@@ -144,6 +159,17 @@ export function WebSocketProvider({ children }) {
     }
   }, [])
 
+  // --- Subscription helpers (stable refs, never change identity) ---
+  const subscribeToFrames = useCallback((callback) => {
+    frameSubscribers.current.add(callback)
+    return () => frameSubscribers.current.delete(callback)
+  }, [])
+
+  const subscribeToAnnotations = useCallback((callback) => {
+    annotationSubscribers.current.add(callback)
+    return () => annotationSubscribers.current.delete(callback)
+  }, [])
+
   // Handle tab visibility changes
   useEffect(() => {
     const handleVisibility = () => {
@@ -185,9 +211,10 @@ export function WebSocketProvider({ children }) {
   const value = {
     connected,
     lastMessage,
-    videoFrame,     // Now a Blob (binary JPEG)
-    annotations,    // Separate state for zone annotations
     sendMessage,
+    // Subscription-based APIs — no React state for high-frequency data
+    subscribeToFrames,
+    subscribeToAnnotations,
   }
 
   return (
