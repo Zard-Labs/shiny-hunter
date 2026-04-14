@@ -168,7 +168,25 @@ curl -X POST http://<ESP32_IP>/button \
 -DBOARD_HAS_NATIVE_USB
 -DARDUINO_USB_MODE=1
 -DARDUINO_USB_CDC_ON_BOOT=1
+-DFIRMWARE_VERSION='"1.0.0"'
 ```
+
+### Firmware Versioning
+
+The firmware version is managed in two places that must be kept in sync:
+
+| File | Field | Purpose |
+|------|-------|---------|
+| `docs/firmware/manifest.json` | `"version"` | **Source of truth** — shown on the web installer page |
+| `esp32/platformio.ini` | `-DFIRMWARE_VERSION` | Baked into the compiled firmware binary |
+
+**When releasing a new version:**
+
+1. Update `"version"` in `docs/firmware/manifest.json`
+2. Update the `-DFIRMWARE_VERSION` value in `esp32/platformio.ini` to match
+3. Rebuild and export the firmware binaries to `docs/firmware/`
+
+The install page ([`docs/index.html`](../docs/index.html)) dynamically fetches the version from `manifest.json` at page load. The ESP32 firmware reports its compiled-in version via the `/status` endpoint (`firmware_version` field) and in the serial boot banner.
 
 ---
 

@@ -39,7 +39,10 @@ class OpenCVDetector:
         self._ocr_engine = None  # Lazy-loaded RapidOCR engine
         self._nature_debug_counter = 0  # Counter for debug image filenames
         
-        # Color bounds for shiny detection (HSV)
+        # Active detection config (set by load_detection_config)
+        self._detection_config: Optional[Dict] = None
+        
+        # Default color bounds for shiny detection (HSV)
         self.lower_yellow = np.array([20, 100, 150])
         self.upper_yellow = np.array([35, 255, 255])
         
@@ -69,7 +72,7 @@ class OpenCVDetector:
     
     def load_templates(self, templates_dir: str = "templates"):
         """
-        Load all template images for visual matching.
+        Load all template images for visual matching (legacy path).
         
         Args:
             templates_dir: Directory containing template images
@@ -98,6 +101,183 @@ class OpenCVDetector:
             else:
                 self.templates[key] = None
                 logger.warning(f"Template not found: {path}")
+    
+    def load_templates_for_automation(self, template_id: str, image_map: Dict[str, str]):
+        """
+        Load template images for a specific automation template.
+        
+        Clears existing templates and loads from the per-template directory.
+        The ``image_map`` maps template *keys* (as referenced in the
+        automation definition) to filenames on disk.
+        
+        Args:
+            template_id: UUID of the automation template
+            image_map: Dict of {key: filename} pairs, e.g.
+                       {"title_screen": "title_screen.png", ...}
+        """
+        from app.config import is_packaged, get_user_data_path
+        if is_packaged():
+            base_path = get_user_data_path() / "templates" / template_id
+        else:
+            base_path = Path(__file__).parent.parent.parent / "templates" / template_id
+        
+        self.templates.clear()
+        loaded = 0
+        
+        for key, filename in image_map.items():
+            path = base_path / filename
+            if path.exists():
+                self.templates[key] = cv2.imread(str(path), cv2.IMREAD_GRAYSCALE)
+                loaded += 1
+                logger.info(f"Loaded template: {key} ({filename})")
+            else:
+                self.templates[key] = None
+                logger.warning(f"Template image not found: {path}")
+        
+        logger.info(f"Loaded {loaded}/{len(image_map)} templates for automation {template_id}")
+    
+    def load_detection_config(self, detection_config: Dict):
+        """
+        Load detection parameters from an automation template definition.
+        
+        Updates the shiny detection color bounds so ``detect_shiny_with_config``
+        and the engine can use per-template settings.
+        
+        Args:
+            detection_config: The ``detection`` section of a template definition
+        """
+        self._detection_config = detection_config
+        
+        # Update shiny color bounds if provided
+        color_bounds = detection_config.get("color_bounds", {})
+        lower = color_bounds.get("lower_hsv")
+        upper = color_bounds.get("upper_hsv")
+        if lower:
+            self.lower_yellow = np.array(lower)
+        if upper:
+            self.upper_yellow = np.array(upper)
+        
+        logger.info(f"Detection config loaded: method={detection_config.get('method', 'default')}")
+    
+    def detect_shiny_with_config(self, color_frame: np.ndarray,
+                                  detection_config: Optional[Dict] = None
+                                  ) -> Tuple[bool, int]:
+        """
+        Detect shiny using per-template detection config.
+        
+        Falls back to global settings if no config is provided or
+        if ``load_detection_config`` was never called.
+        
+        Args:
+            color_frame: Color frame (BGR format)
+            detection_config: Optional override; uses stored config if None
+        
+        Returns:
+            Tuple of (is_shiny, pixel_count)
+        """
+        cfg = detection_config or self._detection_config
+        
+        if cfg is None:
+            # Fall back to the legacy method
+            return self.detect_shiny(color_frame)
+        
+        try:
+            zone = cfg.get("zone", {})
+            ux = zone.get("upper_x", 264)
+            uy = zone.get("upper_y", 109)
+            lx = zone.get("lower_x", 312)
+            ly = zone.get("lower_y", 151)
+            threshold = cfg.get("threshold", 20)
+            
+            roi = color_frame[uy:ly, ux:lx]
+            hsv = cv2.cvtColor(roi, cv2.COLOR_BGR2HSV)
+            yellow_mask = cv2.inRange(hsv, self.lower_yellow, self.upper_yellow)
+            yellow_pixels = cv2.countNonZero(yellow_mask)
+            
+            is_shiny = yellow_pixels > threshold
+            return is_shiny, yellow_pixels
+        
+        except Exception as e:
+            logger.error(f"Error detecting shiny (config mode): {e}")
+            return False, 0
+    
+    def detect_gender_with_config(self, color_frame: np.ndarray,
+                                   gender_config: Optional[Dict] = None
+                                   ) -> str:
+        """
+        Detect gender using per-template zone config.
+        
+        Args:
+            color_frame: Color frame (BGR format)
+            gender_config: Optional gender_detection section from template
+        
+        Returns:
+            Gender string: 'Male', 'Female', or 'Unknown'
+        """
+        if gender_config is None or not gender_config.get("enabled", True):
+            return self.detect_gender(color_frame)
+        
+        zone = gender_config.get("zone", {})
+        if not zone:
+            return self.detect_gender(color_frame)
+        
+        try:
+            ux = zone.get("upper_x", 284)
+            uy = zone.get("upper_y", 68)
+            lx = zone.get("lower_x", 311)
+            ly = zone.get("lower_y", 92)
+            
+            roi = color_frame[uy:ly, ux:lx]
+            hsv = cv2.cvtColor(roi, cv2.COLOR_BGR2HSV)
+            
+            blue_mask = cv2.inRange(hsv, self.lower_blue, self.upper_blue)
+            blue_pixels = cv2.countNonZero(blue_mask)
+            
+            red_mask1 = cv2.inRange(hsv, self.lower_red1, self.upper_red1)
+            red_mask2 = cv2.inRange(hsv, self.lower_red2, self.upper_red2)
+            red_mask = cv2.bitwise_or(red_mask1, red_mask2)
+            red_pixels = cv2.countNonZero(red_mask)
+            
+            if blue_pixels > settings.blue_gender_threshold:
+                return 'Male'
+            elif red_pixels > settings.red_gender_threshold:
+                return 'Female'
+            else:
+                return 'Unknown'
+        
+        except Exception as e:
+            logger.error(f"Error detecting gender (config mode): {e}")
+            return 'Unknown'
+    
+    def detect_nature_with_config(self, color_frame: np.ndarray,
+                                   nature_config: Optional[Dict] = None
+                                   ) -> str:
+        """
+        Detect nature using per-template zone config.
+        
+        Args:
+            color_frame: Color frame (BGR format)
+            nature_config: Optional nature_detection section from template
+        
+        Returns:
+            Nature name or 'Unknown'
+        """
+        if nature_config is None or not nature_config.get("enabled", True):
+            return self.detect_nature(color_frame)
+        
+        zone = nature_config.get("zone", {})
+        if not zone:
+            return self.detect_nature(color_frame)
+        
+        # Temporarily override settings for the OCR call
+        # (detect_nature reads from settings.nature_text_zone)
+        import copy
+        original_zone = copy.deepcopy(settings.nature_text_zone)
+        try:
+            settings.nature_text_zone = zone
+            return self.detect_nature(color_frame)
+        finally:
+            settings.nature_text_zone = original_zone
     
     def check_template(
         self,

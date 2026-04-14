@@ -123,7 +123,7 @@ export const saveCropModeToConfig = async (mode) => {
   return response.data
 }
 
-// Template Management
+// Template Management (legacy — per-game screen captures)
 export const getTemplateStatus = async () => {
   const response = await api.get('/api/templates/status')
   return response.data
@@ -146,5 +146,93 @@ export const reloadTemplates = async () => {
 
 export const getTemplatePreviewUrl = (templateKey) =>
   `${API_BASE_URL}/api/templates/preview/${templateKey}`
+
+
+// ── Automation Templates (workflow definitions) ─────────────────────
+
+export const getAutomationTemplates = async () => {
+  const response = await api.get('/api/automation-templates')
+  return response.data
+}
+
+export const getAutomationTemplate = async (id) => {
+  const response = await api.get(`/api/automation-templates/${id}`)
+  return response.data
+}
+
+export const createAutomationTemplate = async (data) => {
+  const response = await api.post('/api/automation-templates', data)
+  return response.data
+}
+
+export const updateAutomationTemplate = async (id, data) => {
+  const response = await api.put(`/api/automation-templates/${id}`, data)
+  return response.data
+}
+
+export const deleteAutomationTemplate = async (id) => {
+  const response = await api.delete(`/api/automation-templates/${id}`)
+  return response.data
+}
+
+export const activateAutomationTemplate = async (id) => {
+  const response = await api.post(`/api/automation-templates/${id}/activate`)
+  return response.data
+}
+
+export const cloneAutomationTemplate = async (id) => {
+  const response = await api.post(`/api/automation-templates/${id}/clone`)
+  return response.data
+}
+
+export const exportAutomationTemplate = async (id) => {
+  const response = await api.get(`/api/automation-templates/${id}/export`)
+  return response.data
+}
+
+export const importAutomationTemplate = async (data) => {
+  const response = await api.post('/api/automation-templates/import', data)
+  return response.data
+}
+
+// Automation Template Images
+export const getAutomationTemplateImages = async (templateId) => {
+  const response = await api.get(`/api/automation-templates/${templateId}/images`)
+  return response.data
+}
+
+export const captureAutomationTemplateImage = async (templateId, data) => {
+  const response = await api.post(
+    `/api/automation-templates/${templateId}/images/capture`,
+    data
+  )
+  return response.data
+}
+
+export const createAutomationTemplateImage = async (templateId, data) => {
+  const response = await api.post(
+    `/api/automation-templates/${templateId}/images`,
+    data
+  )
+  return response.data
+}
+
+export const updateAutomationTemplateImage = async (templateId, imageKey, data) => {
+  const response = await api.put(
+    `/api/automation-templates/${templateId}/images/${imageKey}`,
+    data
+  )
+  return response.data
+}
+
+export const deleteAutomationTemplateImage = async (templateId, imageKey) => {
+  const response = await api.delete(
+    `/api/automation-templates/${templateId}/images/${imageKey}`
+  )
+  return response.data
+}
+
+export const getAutomationTemplateImagePreviewUrl = (templateId, imageKey) =>
+  `${API_BASE_URL}/api/automation-templates/${templateId}/images/${imageKey}/preview`
 
 export default api

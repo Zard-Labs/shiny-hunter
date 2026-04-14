@@ -1,7 +1,59 @@
 """Database models."""
-from sqlalchemy import Column, Integer, String, Boolean, Float, DateTime, Index
+from sqlalchemy import Column, Integer, String, Boolean, Float, DateTime, Text, Index
 from sqlalchemy.sql import func
 from app.database import Base
+
+
+class AutomationTemplate(Base):
+    """Automation template defining a complete hunt workflow.
+    
+    Each template is a self-contained recipe: the state-machine steps,
+    detection config, soft-reset timing and the list of required
+    screenshot templates — all serialised as a JSON blob in `definition`.
+    
+    Only one template may be active at a time (is_active=True).
+    """
+    __tablename__ = "automation_templates"
+    
+    id = Column(String(36), primary_key=True)               # UUID
+    name = Column(String(100), nullable=False)               # e.g. "Starter Charmander Hunt"
+    description = Column(Text, nullable=True)                # Optional long description
+    game = Column(String(50), default="Pokemon Red")         # Game title
+    pokemon_name = Column(String(50), default="Charmander")  # Target Pokemon
+    definition = Column(Text, nullable=False)                # JSON blob (steps, rules, detection)
+    is_active = Column(Boolean, default=False)               # Currently selected template
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    version = Column(Integer, default=1)
+    
+    __table_args__ = (
+        Index('idx_template_active', 'is_active'),
+    )
+
+
+class TemplateImage(Base):
+    """Screenshot template image belonging to an automation template.
+    
+    Each automation template references a set of screen-matching images
+    (e.g. title screen, summary screen).  Images are stored on the
+    filesystem under ``templates/<automation_template_id>/``.
+    """
+    __tablename__ = "template_images"
+    
+    id = Column(String(36), primary_key=True)                              # UUID
+    automation_template_id = Column(String(36), nullable=False, index=True)  # FK (logical)
+    key = Column(String(50), nullable=False)                               # e.g. "title_screen"
+    label = Column(String(100), nullable=True)                             # Display label
+    description = Column(String(255), nullable=True)                       # What this screenshot shows
+    image_path = Column(String(255), nullable=True)                        # Grayscale PNG path
+    color_image_path = Column(String(255), nullable=True)                  # Color preview path
+    threshold = Column(Float, default=0.80)                                # Match confidence threshold
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    
+    __table_args__ = (
+        Index('idx_tmpl_img_template', 'automation_template_id'),
+        Index('idx_tmpl_img_key', 'automation_template_id', 'key', unique=True),
+    )
 
 
 class Hunt(Base):
@@ -15,6 +67,7 @@ class Hunt(Base):
     
     id = Column(String(36), primary_key=True)  # UUID
     name = Column(String(100), nullable=True)  # Optional display name
+    automation_template_id = Column(String(36), nullable=True)  # FK to active template at hunt creation
     started_at = Column(DateTime(timezone=True), server_default=func.now())
     ended_at = Column(DateTime(timezone=True), nullable=True)
     total_encounters = Column(Integer, default=0)

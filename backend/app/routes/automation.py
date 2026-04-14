@@ -1,9 +1,12 @@
 """Automation control endpoints."""
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
+from typing import Optional
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Query
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 import asyncio
 
 from app.database import get_db
+from app.models import AutomationTemplate, TemplateImage
 from app.schemas import AutomationStatus
 from app.services.game_engine import game_engine
 from app.services.video_capture import video_capture
@@ -40,9 +43,20 @@ async def _run_automation_loop():
     logger.info("Automation loop stopped")
 
 
+class StartRequest(BaseModel):
+    template_id: Optional[str] = None
+
+
 @router.post("/start")
-async def start_automation(db: Session = Depends(get_db)):
-    """Start automated shiny hunting with background task."""
+async def start_automation(
+    body: Optional[StartRequest] = None,
+    db: Session = Depends(get_db),
+):
+    """Start automated shiny hunting with background task.
+
+    Optionally pass ``template_id`` to override the active template.
+    If not provided, the currently active template is used.
+    """
     global _automation_task
     
     try:
@@ -56,6 +70,31 @@ async def start_automation(db: Session = Depends(get_db)):
                 detail="Camera is not connected. Cannot start automation."
             )
         
+        # ── Load the automation template ─────────────────────────
+        template_id = body.template_id if body else None
+        
+        if template_id:
+            tmpl = db.query(AutomationTemplate).filter(
+                AutomationTemplate.id == template_id
+            ).first()
+        else:
+            tmpl = db.query(AutomationTemplate).filter(
+                AutomationTemplate.is_active == True
+            ).first()
+        
+        if not tmpl:
+            raise HTTPException(
+                status_code=404,
+                detail="No automation template found. Create or activate one first."
+            )
+        
+        images = db.query(TemplateImage).filter(
+            TemplateImage.automation_template_id == tmpl.id
+        ).all()
+        
+        game_engine.load_template(tmpl, images)
+        
+        # ── Start the engine ─────────────────────────────────────
         session_id = game_engine.start(db)
         
         # Start the automation background task
@@ -65,7 +104,9 @@ async def start_automation(db: Session = Depends(get_db)):
         return {
             "status": "started",
             "session_id": session_id,
-            "message": "Automation started successfully"
+            "template_id": tmpl.id,
+            "template_name": tmpl.name,
+            "message": f"Automation started with template '{tmpl.name}'"
         }
     
     except HTTPException:
@@ -94,18 +135,21 @@ async def stop_automation():
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/status", response_model=AutomationStatus)
+@router.get("/status")
 async def get_automation_status():
-    """Get current automation state."""
+    """Get current automation state including template info."""
     try:
         status = game_engine.get_status()
         
-        return AutomationStatus(
-            is_running=status["is_running"],
-            state=status["state"],
-            encounter_count=status["encounter_count"],
-            session_id=status.get("session_id")
-        )
+        return {
+            "is_running": status["is_running"],
+            "state": status["state"],
+            "encounter_count": status["encounter_count"],
+            "session_id": status.get("session_id"),
+            "template_id": status.get("template_id"),
+            "template_name": status.get("template_name"),
+            "pokemon_name": status.get("pokemon_name"),
+        }
     
     except Exception as e:
         logger.error(f"Error getting status: {e}")

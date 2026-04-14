@@ -44,7 +44,23 @@
             font-size: 14px;
             text-transform: uppercase;
             letter-spacing: 2px;
-            margin-bottom: 30px;
+            margin-bottom: 12px;
+        }
+        .version-badge {
+            display: inline-block;
+            background: #3a3a3a;
+            color: #b0b0b0;
+            font-size: 11px;
+            padding: 4px 12px;
+            border: 2px solid #5a5a5a;
+            border-radius: 3px;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            margin-bottom: 24px;
+        }
+        .version-badge .ver {
+            color: #d92626;
+            font-weight: bold;
         }
         .description {
             color: #3a3a3a;
@@ -159,6 +175,9 @@
 <div class="container">
     <h1>🎮 ShinyStarter</h1>
     <div class="subtitle">ESP32-S3 Firmware Installer</div>
+    <div id="firmware-version" class="version-badge" style="display:none">
+        Firmware <span class="ver" id="version-text">—</span>
+    </div>
 
     <div class="description">
         <div class="step">
@@ -226,6 +245,17 @@
     if (!('serial' in navigator)) {
         document.getElementById('unsupported').style.display = 'block';
     }
+
+    // Fetch firmware version from manifest and display it
+    fetch('firmware/manifest.json')
+        .then(function (r) { return r.json(); })
+        .then(function (manifest) {
+            if (manifest && manifest.version) {
+                document.getElementById('version-text').textContent = 'v' + manifest.version;
+                document.getElementById('firmware-version').style.display = '';
+            }
+        })
+        .catch(function () { /* badge stays hidden if fetch fails */ });
 </script>
 </body>
 </html>

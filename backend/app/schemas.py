@@ -1,8 +1,90 @@
 """Pydantic schemas for API request/response validation."""
 from pydantic import BaseModel, Field
-from typing import Optional, Dict, List
+from typing import Optional, Dict, List, Any
 from datetime import datetime
 
+
+# ── Automation Template schemas ──────────────────────────────────────
+
+class AutomationTemplateCreate(BaseModel):
+    """Create a new automation template."""
+    name: str = Field(..., max_length=100)
+    description: Optional[str] = None
+    game: str = Field(default="Pokemon Red", max_length=50)
+    pokemon_name: str = Field(default="Charmander", max_length=50)
+    definition: Dict[str, Any] = Field(..., description="JSON definition with steps, detection, etc.")
+
+
+class AutomationTemplateUpdate(BaseModel):
+    """Update an existing automation template."""
+    name: Optional[str] = Field(None, max_length=100)
+    description: Optional[str] = None
+    game: Optional[str] = Field(None, max_length=50)
+    pokemon_name: Optional[str] = Field(None, max_length=50)
+    definition: Optional[Dict[str, Any]] = None
+
+
+class AutomationTemplateResponse(BaseModel):
+    """Automation template with metadata (no full definition)."""
+    id: str
+    name: str
+    description: Optional[str] = None
+    game: str
+    pokemon_name: str
+    is_active: bool
+    version: int
+    step_count: int = 0
+    image_count: int = 0
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class AutomationTemplateDetail(BaseModel):
+    """Full automation template with definition included."""
+    id: str
+    name: str
+    description: Optional[str] = None
+    game: str
+    pokemon_name: str
+    definition: Dict[str, Any]
+    is_active: bool
+    version: int
+    created_at: datetime
+    updated_at: datetime
+    images: List["TemplateImageResponse"] = []
+
+    class Config:
+        from_attributes = True
+
+
+class TemplateImageResponse(BaseModel):
+    """Template image metadata."""
+    id: str
+    automation_template_id: str
+    key: str
+    label: Optional[str] = None
+    description: Optional[str] = None
+    threshold: float = 0.80
+    captured: bool = False
+    preview_url: Optional[str] = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class TemplateImageCapture(BaseModel):
+    """Request to capture a template image from the current frame."""
+    key: str = Field(..., max_length=50)
+    label: Optional[str] = Field(None, max_length=100)
+    description: Optional[str] = Field(None, max_length=255)
+    threshold: float = Field(default=0.80, ge=0.0, le=1.0)
+
+
+# ── Encounter schemas ────────────────────────────────────────────────
 
 # Encounter schemas
 class EncounterBase(BaseModel):

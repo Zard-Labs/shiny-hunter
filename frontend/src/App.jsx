@@ -9,6 +9,7 @@ import CameraSelector from './components/CameraSelector'
 import ESP32Config from './components/ESP32Config'
 import TemplateCapturePanel from './components/TemplateCapturePanel'
 import HuntSelector from './components/HuntSelector'
+import TemplateLibrary from './components/TemplateLibrary'
 import useWebSocket from './hooks/useWebSocket.jsx'
 import { getAutomationStatus, getStatistics, getHistory } from './services/api'
 import './styles/App.css'
@@ -32,6 +33,7 @@ function App() {
   })
   const [history, setHistory] = useState([])
   const [showCalibration, setShowCalibration] = useState(false)
+  const [showTemplateLibrary, setShowTemplateLibrary] = useState(false)
   const [selectedHuntId, setSelectedHuntId] = useState(null) // null = active hunt
   const { connected, lastMessage } = useWebSocket()
 
@@ -131,6 +133,7 @@ function App() {
             onRefresh={fetchData}
             onCalibrate={() => setShowCalibration(true)}
             onNewHunt={handleNewHunt}
+            onOpenTemplates={() => setShowTemplateLibrary(true)}
           />
           <StatusDisplay
             status={automationStatus}
@@ -154,6 +157,10 @@ function App() {
 
       {showCalibration && (
         <CalibrationModal onClose={() => setShowCalibration(false)} />
+      )}
+
+      {showTemplateLibrary && (
+        <TemplateLibrary onClose={() => setShowTemplateLibrary(false)} />
       )}
     </div>
   )

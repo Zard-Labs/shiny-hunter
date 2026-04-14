@@ -439,7 +439,7 @@ void handleButtonRequest() {
 void handleStatus() {
     String mode = apMode ? "setup" : "usb_hid";
     String ip = apMode ? WiFi.softAPIP().toString() : WiFi.localIP().toString();
-    String json = "{\"status\":\"ok\",\"connected\":" + String(WiFi.status() == WL_CONNECTED ? "true" : "false") + ",\"mode\":\"" + mode + "\",\"ip\":\"" + ip + "\"}";
+    String json = "{\"status\":\"ok\",\"connected\":" + String(WiFi.status() == WL_CONNECTED ? "true" : "false") + ",\"mode\":\"" + mode + "\",\"ip\":\"" + ip + "\",\"firmware_version\":\"" FIRMWARE_VERSION "\"}";
     server.send(200, "application/json", json);
 }
 
@@ -610,7 +610,7 @@ void setup() {
     delay(1000);
     
     Serial.println("\n\n========================================");
-    Serial.println("  ShinyStarter Controller v1.0");
+    Serial.println("  ShinyStarter Controller v" FIRMWARE_VERSION);
     Serial.println("========================================\n");
     
     // Initialize USB HID Gamepad

@@ -8,7 +8,7 @@ import asyncio
 
 from app.config import settings, get_frontend_dist_path, is_packaged, get_user_data_path
 from app.database import init_db, get_db
-from app.routes import automation, control, statistics, websocket, camera, templates, calibration
+from app.routes import automation, automation_templates, control, statistics, websocket, camera, templates, calibration
 from app.services.esp32_manager import esp32_manager
 from app.services.video_capture import video_capture
 from app.services.opencv_detector import opencv_detector
@@ -45,6 +45,7 @@ app.mount("/encounters", StaticFiles(directory=str(encounters_dir)), name="encou
 
 # Register routers
 app.include_router(automation.router)
+app.include_router(automation_templates.router)
 app.include_router(control.router)
 app.include_router(statistics.router)
 app.include_router(websocket.router)
