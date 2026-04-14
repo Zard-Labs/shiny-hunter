@@ -8,6 +8,7 @@ import cv2
 
 from app.services.video_capture import video_capture
 from app.services.opencv_detector import opencv_detector
+from app.config import is_packaged, get_user_data_path
 from app.utils.logger import logger
 
 
@@ -59,7 +60,10 @@ GAME_TEMPLATES = {
     },
 }
 
-TEMPLATES_DIR = Path(__file__).parent.parent.parent / "templates" / "pokemon_red"
+if is_packaged():
+    TEMPLATES_DIR = get_user_data_path() / "templates" / "pokemon_red"
+else:
+    TEMPLATES_DIR = Path(__file__).parent.parent.parent / "templates" / "pokemon_red"
 
 
 class TemplateInfo(BaseModel):

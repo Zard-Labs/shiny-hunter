@@ -74,7 +74,11 @@ class OpenCVDetector:
         Args:
             templates_dir: Directory containing template images
         """
-        base_path = Path(__file__).parent.parent.parent / templates_dir / "pokemon_red"
+        from app.config import is_packaged, get_user_data_path
+        if is_packaged():
+            base_path = get_user_data_path() / templates_dir / "pokemon_red"
+        else:
+            base_path = Path(__file__).parent.parent.parent / templates_dir / "pokemon_red"
         
         template_files = {
             'title': 'title_screen.png',
@@ -264,7 +268,11 @@ class OpenCVDetector:
         """
         try:
             self._nature_debug_counter += 1
-            debug_dir = Path(__file__).parent.parent.parent / 'encounters' / 'debug'
+            from app.config import is_packaged, get_user_data_path
+            if is_packaged():
+                debug_dir = get_user_data_path() / 'encounters' / 'debug'
+            else:
+                debug_dir = Path(__file__).parent.parent.parent / 'encounters' / 'debug'
             debug_dir.mkdir(parents=True, exist_ok=True)
             
             counter = self._nature_debug_counter

@@ -6,8 +6,13 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from pathlib import Path
 
-# Database file path
-DB_PATH = Path(__file__).parent.parent / "shiny_hunter.db"
+from app.config import is_packaged, get_user_data_path
+
+# Database file path — use user data dir in packaged mode so it survives upgrades
+if is_packaged():
+    DB_PATH = get_user_data_path() / "shiny_hunter.db"
+else:
+    DB_PATH = Path(__file__).parent.parent / "shiny_hunter.db"
 SQLALCHEMY_DATABASE_URL = f"sqlite:///{DB_PATH}"
 
 # Create engine

@@ -46,6 +46,10 @@ bool apMode = false;         // true = captive portal mode, false = normal stati
 String savedSSID = "";
 String savedPassword = "";
 
+// Auto-release timer — allows precise local timing instead of WiFi round-trip timing
+volatile bool pendingRelease = false;
+unsigned long releaseTime = 0;
+
 // ==================== Forward Declarations ====================
 void handleConfigPage();
 void handleScanNetworks();
@@ -415,10 +419,21 @@ void handleButtonRequest() {
     }
     
     uint8_t cmd = doc["cmd"];
+    uint16_t duration = doc["duration_ms"] | 0;  // 0 = no auto-release (backward compatible)
+    
     handleButtonCommand(cmd);
     
+    // If duration specified and not a release command, schedule auto-release
+    if (duration > 0 && cmd != CMD_RELEASE) {
+        pendingRelease = true;
+        releaseTime = millis() + duration;
+        Serial.printf("Button command received: 0x%02X (auto-release in %ums)\n", cmd, duration);
+    } else {
+        pendingRelease = false;
+        Serial.printf("Button command received: 0x%02X\n", cmd);
+    }
+    
     server.send(200, "application/json", "{\"status\":\"ok\"}");
-    Serial.printf("Button command received: 0x%02X\n", cmd);
 }
 
 void handleStatus() {
@@ -566,8 +581,7 @@ void handleRoot() {
 <div id="feedback" class="feedback"></div>
 </div>
 <script>
-async function sendCommand(cmd,name){const f=document.getElementById('feedback');try{const r=await fetch('/button',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({cmd:cmd})});if(r.ok){f.className='feedback success';f.textContent='✓ '+name+' (0x'+cmd.toString(16).toUpperCase().padStart(2,'0')+')';setTimeout(()=>f.style.display='none',2000)}else throw new Error('Failed')}catch(e){f.className='feedback error';f.textContent='✗ COMMAND FAILED';setTimeout(()=>f.style.display='none',3000)}}
-let releaseTimeout;document.querySelectorAll('button').forEach(btn=>{btn.addEventListener('click',function(){clearTimeout(releaseTimeout);releaseTimeout=setTimeout(()=>sendCommand(0x00,'AUTO-RELEASE'),100)})});
+async function sendCommand(cmd,name,dur){const f=document.getElementById('feedback');const payload={cmd:cmd};if(cmd!==0x00){payload.duration_ms=dur||100}try{const r=await fetch('/button',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});if(r.ok){f.className='feedback success';f.textContent='✓ '+name+' (0x'+cmd.toString(16).toUpperCase().padStart(2,'0')+')';setTimeout(()=>f.style.display='none',2000)}else throw new Error('Failed')}catch(e){f.className='feedback error';f.textContent='✗ COMMAND FAILED';setTimeout(()=>f.style.display='none',3000)}}
 document.addEventListener('contextmenu',function(e){if(e.target.tagName==='BUTTON')e.preventDefault()});
 </script>
 </body>
@@ -649,6 +663,12 @@ void loop() {
             }
             lastCheck = millis();
         }
+    }
+    
+    // Auto-release timer — precise local timing for button presses
+    if (pendingRelease && millis() >= releaseTime) {
+        handleButtonCommand(CMD_RELEASE);
+        pendingRelease = false;
     }
     
     // Handle HTTP requests (both modes)

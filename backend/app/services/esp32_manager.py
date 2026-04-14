@@ -25,6 +25,7 @@ class ESP32Manager:
         self.connected = False
         self.serial_port: Optional[serial.Serial] = None
         self._client: Optional[httpx.AsyncClient] = None
+        self._button_lock = asyncio.Lock()  # Serialize button commands to prevent overlapping press/release cycles
         
         if self.mode == "wifi":
             self.base_url = f"http://{settings.esp32_ip}:{settings.esp32_port}"
@@ -174,8 +175,12 @@ class ESP32Manager:
         """
         Send button command to ESP32-S3 (non-blocking).
         
-        Uses httpx for async HTTP and asyncio.sleep for delays,
-        so the event loop stays responsive during hold/wait periods.
+        WiFi mode: sends a single HTTP request with duration_ms so the ESP32
+        handles precise press/release timing locally (immune to WiFi latency).
+        UART mode: uses traditional press→sleep→release (no latency issue).
+        
+        The asyncio.Lock ensures concurrent calls are serialized so
+        overlapping press/release cycles cannot interfere with each other.
         
         Args:
             button: Button name (e.g., 'A', 'START', 'UP')
@@ -192,66 +197,62 @@ class ESP32Manager:
         hold_duration = hold if hold is not None else settings.button_hold_duration
         wait_duration = wait if wait is not None else settings.button_release_delay
         
-        try:
-            cmd = build_command(button)
+        async with self._button_lock:
+            try:
+                cmd = build_command(button)
+                
+                if self.mode == "wifi":
+                    client = await self._get_client()
+                    hold_ms = int(hold_duration * 1000)
+                    
+                    # Single request — ESP32 handles precise local timing
+                    response = await client.post(
+                        f"{self.base_url}/button",
+                        json={"cmd": cmd, "duration_ms": hold_ms}
+                    )
+                    
+                    if response.status_code != 200:
+                        logger.error(f"ESP32-S3 returned status {response.status_code}")
+                        return False
+                    
+                    # Wait for hold + release delay so the next command
+                    # doesn't arrive before the ESP32 auto-releases
+                    await asyncio.sleep(hold_duration + wait_duration)
+                    
+                    logger.debug(f"Sent button: {button} (duration_ms={hold_ms}, wait={wait_duration}s)")
+                    return True
+                
+                else:  # UART mode — no latency issue, keep press→sleep→release
+                    if not self.serial_port:
+                        logger.error("Serial port not initialized")
+                        return False
+                    
+                    loop = asyncio.get_event_loop()
+                    
+                    # Send button press (in executor to avoid blocking)
+                    await loop.run_in_executor(
+                        None, self.serial_port.write, bytes([cmd])
+                    )
+                    await asyncio.sleep(hold_duration)
+                    
+                    # Send release
+                    await loop.run_in_executor(
+                        None, self.serial_port.write, bytes([0x00])
+                    )
+                    await asyncio.sleep(wait_duration)
+                    
+                    logger.debug(f"Sent button: {button} (hold={hold_duration}s, wait={wait_duration}s)")
+                    return True
             
-            if self.mode == "wifi":
-                client = await self._get_client()
-                
-                # Send button press
-                response = await client.post(
-                    f"{self.base_url}/button",
-                    json={"cmd": cmd}
-                )
-                
-                if response.status_code != 200:
-                    logger.error(f"ESP32-S3 returned status {response.status_code}")
-                    return False
-                
-                # Hold button (non-blocking)
-                await asyncio.sleep(hold_duration)
-                
-                # Send release
-                await client.post(
-                    f"{self.base_url}/button",
-                    json={"cmd": 0x00}
-                )
-                
-                # Wait after release (non-blocking)
-                await asyncio.sleep(wait_duration)
-                
-                logger.debug(f"Sent button: {button} (hold={hold_duration}s, wait={wait_duration}s)")
-                return True
-            
-            else:  # UART mode
-                if not self.serial_port:
-                    logger.error("Serial port not initialized")
-                    return False
-                
-                loop = asyncio.get_event_loop()
-                
-                # Send button press (in executor to avoid blocking)
-                await loop.run_in_executor(
-                    None, self.serial_port.write, bytes([cmd])
-                )
-                await asyncio.sleep(hold_duration)
-                
-                # Send release
-                await loop.run_in_executor(
-                    None, self.serial_port.write, bytes([0x00])
-                )
-                await asyncio.sleep(wait_duration)
-                
-                logger.debug(f"Sent button: {button} (hold={hold_duration}s, wait={wait_duration}s)")
-                return True
-        
-        except Exception as e:
-            logger.error(f"Error sending button {button}: {e}")
-            return False
+            except Exception as e:
+                logger.error(f"Error sending button {button}: {e}")
+                return False
     
     async def send_combo(self, button: str, hold: float) -> bool:
         """
         Send button combo (e.g., RESET) and hold for specified duration.
+        
+        WiFi mode: sends duration_ms so ESP32 handles precise timing locally.
         
         Args:
             button: Button name (typically 'RESET')
@@ -264,53 +265,49 @@ class ESP32Manager:
             logger.warning("Not connected to ESP32-S3")
             return False
         
-        try:
-            cmd = build_command(button)
+        async with self._button_lock:
+            try:
+                cmd = build_command(button)
+                
+                if self.mode == "wifi":
+                    client = await self._get_client()
+                    hold_ms = int(hold * 1000)
+                    
+                    # Single request — ESP32 handles precise local timing
+                    response = await client.post(
+                        f"{self.base_url}/button",
+                        json={"cmd": cmd, "duration_ms": hold_ms}
+                    )
+                    
+                    if response.status_code != 200:
+                        return False
+                    
+                    # Wait for the combo hold to complete on ESP32
+                    await asyncio.sleep(hold + 0.05)
+                    
+                    logger.info(f"Sent combo: {button} (duration_ms={hold_ms})")
+                    return True
+                
+                else:  # UART mode — keep press→sleep→release
+                    if not self.serial_port:
+                        return False
+                    
+                    loop = asyncio.get_event_loop()
+                    
+                    await loop.run_in_executor(
+                        None, self.serial_port.write, bytes([cmd])
+                    )
+                    await asyncio.sleep(hold)
+                    await loop.run_in_executor(
+                        None, self.serial_port.write, bytes([0x00])
+                    )
+                    
+                    logger.info(f"Sent combo: {button} (hold={hold}s)")
+                    return True
             
-            if self.mode == "wifi":
-                client = await self._get_client()
-                
-                # Send combo press
-                response = await client.post(
-                    f"{self.base_url}/button",
-                    json={"cmd": cmd}
-                )
-                
-                if response.status_code != 200:
-                    return False
-                
-                # Hold for duration (non-blocking)
-                await asyncio.sleep(hold)
-                
-                # Send release
-                await client.post(
-                    f"{self.base_url}/button",
-                    json={"cmd": 0x00}
-                )
-                
-                logger.info(f"Sent combo: {button} (hold={hold}s)")
-                return True
-            
-            else:  # UART mode
-                if not self.serial_port:
-                    return False
-                
-                loop = asyncio.get_event_loop()
-                
-                await loop.run_in_executor(
-                    None, self.serial_port.write, bytes([cmd])
-                )
-                await asyncio.sleep(hold)
-                await loop.run_in_executor(
-                    None, self.serial_port.write, bytes([0x00])
-                )
-                
-                logger.info(f"Sent combo: {button} (hold={hold}s)")
-                return True
-        
-        except Exception as e:
-            logger.error(f"Error sending combo {button}: {e}")
-            return False
+            except Exception as e:
+                logger.error(f"Error sending combo {button}: {e}")
+                return False
     
     async def get_status(self) -> dict:
         """

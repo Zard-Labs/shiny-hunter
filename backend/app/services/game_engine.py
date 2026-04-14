@@ -9,7 +9,7 @@ from datetime import datetime
 from sqlalchemy.orm import Session
 from sqlalchemy import func as sql_func
 
-from app.config import settings
+from app.config import settings, is_packaged, get_user_data_path
 from app.models import Encounter, Session as DBSession, Hunt
 from app.services.esp32_manager import esp32_manager
 from app.services.video_capture import video_capture
@@ -358,7 +358,10 @@ class GameEngine:
         
         # Save screenshot (global numbering — never overwrites)
         self.encounter_count += 1
-        screenshot_dir = Path(__file__).parent.parent.parent / settings.screenshot_directory
+        if is_packaged():
+            screenshot_dir = get_user_data_path() / settings.screenshot_directory
+        else:
+            screenshot_dir = Path(__file__).parent.parent.parent / settings.screenshot_directory
         screenshot_dir.mkdir(exist_ok=True)
         screenshot_path = screenshot_dir / f"encounter_{self.encounter_count:04d}.png"
         cv2.imwrite(str(screenshot_path), fresh_frame)

@@ -29,7 +29,7 @@ def get_user_data_path() -> Path:
 
 def ensure_user_data_dirs(base_path: Path):
     """Create necessary subdirectories in the user data path."""
-    dirs = ['encounters', 'templates', 'logs']
+    dirs = ['encounters', 'templates/pokemon_red', 'templates/natures', 'logs']
     for d in dirs:
         (base_path / d).mkdir(parents=True, exist_ok=True)
 

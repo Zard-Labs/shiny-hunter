@@ -3,7 +3,7 @@ import logging
 import sys
 import io
 from pathlib import Path
-from app.config import settings
+from app.config import settings, is_packaged, get_user_data_path
 
 
 def setup_logger(name: str = "shiny_hunter") -> logging.Logger:
@@ -34,8 +34,11 @@ def setup_logger(name: str = "shiny_hunter") -> logging.Logger:
     console_handler.setFormatter(console_formatter)
     logger.addHandler(console_handler)
     
-    # File handler
-    log_file = Path(__file__).parent.parent.parent / settings.log_file
+    # File handler — use user data dir in packaged mode so logs survive upgrades
+    if is_packaged():
+        log_file = get_user_data_path() / settings.log_file
+    else:
+        log_file = Path(__file__).parent.parent.parent / settings.log_file
     file_handler = logging.FileHandler(log_file)
     file_handler.setLevel(logging.INFO)
     file_formatter = logging.Formatter(
