@@ -6,6 +6,7 @@ for delays, so the event loop stays responsive during button presses.
 import httpx
 import serial
 import asyncio
+import socket
 import time
 from typing import Optional
 from app.config import settings
@@ -55,6 +56,40 @@ class ESP32Manager:
             await self._client.aclose()
             self._client = None
     
+    async def _resolve_and_cache_ip(self):
+        """Resolve mDNS / hostname to a numeric IP and rebuild base_url.
+        
+        Windows mDNS resolution for .local hostnames can take 1-2 seconds
+        per request.  By resolving once at connect time and switching
+        base_url to the raw IP we eliminate that penalty from every
+        subsequent HTTP call.
+        """
+        hostname = settings.esp32_ip
+        # Skip resolution if the user already supplied a numeric IP
+        if hostname.replace(".", "").isdigit():
+            return
+        
+        try:
+            loop = asyncio.get_event_loop()
+            # Run blocking getaddrinfo in a thread so we don't stall the loop
+            result = await loop.run_in_executor(
+                None,
+                lambda: socket.getaddrinfo(hostname, settings.esp32_port, socket.AF_INET)
+            )
+            if result:
+                resolved_ip = result[0][4][0]
+                old_url = self.base_url
+                self.base_url = f"http://{resolved_ip}:{settings.esp32_port}"
+                logger.info(
+                    f"Resolved '{hostname}' → {resolved_ip}  "
+                    f"(base_url: {old_url} → {self.base_url})"
+                )
+        except socket.gaierror as e:
+            logger.warning(
+                f"Could not resolve '{hostname}' to IP ({e}); "
+                f"keeping hostname-based URL: {self.base_url}"
+            )
+
     async def connect(self) -> bool:
         """
         Establish connection to ESP32-S3.
@@ -69,7 +104,9 @@ class ESP32Manager:
                 response = await client.get(f"{self.base_url}/status")
                 if response.status_code == 200:
                     self.connected = True
-                    logger.info("[OK] Connected to ESP32-S3 via WiFi")
+                    # Cache the resolved IP so subsequent requests skip mDNS
+                    await self._resolve_and_cache_ip()
+                    logger.info(f"[OK] Connected to ESP32-S3 via WiFi ({self.base_url})")
                     return True
                 else:
                     logger.error(f"ESP32-S3 returned status {response.status_code}")

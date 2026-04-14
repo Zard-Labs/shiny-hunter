@@ -1,4 +1,5 @@
 """Manual control endpoints for testing ESP32."""
+import asyncio
 import yaml
 from pathlib import Path
 from fastapi import APIRouter, HTTPException
@@ -23,33 +24,36 @@ router = APIRouter(prefix="/api/control", tags=["control"])
 
 @router.post("/button")
 async def send_button_command(command: ButtonCommand):
-    """Send manual button press to ESP32-S3."""
-    try:
-        if not esp32_manager.connected:
-            raise HTTPException(
-                status_code=503,
-                detail="ESP32-S3 not connected. Please connect first."
-            )
-        
-        success = await esp32_manager.send_button(command.button)
-        
-        if not success:
-            raise HTTPException(
-                status_code=500,
-                detail=f"Failed to send button command: {command.button}"
-            )
-        
-        return {
-            "status": "success",
-            "button": command.button,
-            "message": f"Button {command.button} pressed successfully"
-        }
+    """Send manual button press to ESP32-S3.
     
-    except HTTPException:
-        raise
+    Fire-and-forget: the press/hold/release cycle runs in a background
+    task so the HTTP response returns immediately (~ms instead of ~3s).
+    """
+    if not esp32_manager.connected:
+        raise HTTPException(
+            status_code=503,
+            detail="ESP32-S3 not connected. Please connect first."
+        )
+    
+    # Launch the full press→hold→release cycle in the background
+    # so the caller gets an instant response.
+    asyncio.ensure_future(_do_button_press(command.button))
+    
+    return {
+        "status": "success",
+        "button": command.button,
+        "message": f"Button {command.button} sent"
+    }
+
+
+async def _do_button_press(button: str):
+    """Background coroutine that performs the actual press/hold/release."""
+    try:
+        success = await esp32_manager.send_button(button)
+        if not success:
+            logger.warning(f"Background button press failed: {button}")
     except Exception as e:
-        logger.error(f"Error sending button command: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Background button press error ({button}): {e}")
 
 
 @router.get("/esp32/status")
