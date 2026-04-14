@@ -1,4 +1,5 @@
 """Game automation engine with state machine for Pokemon Red."""
+import asyncio
 import time
 import uuid
 import cv2
@@ -234,8 +235,8 @@ class GameEngine:
         match, score = opencv_detector.check_template(gray, 'nick', 0.75)
         if match:
             
-            esp32_manager.send_button('START', wait=0.5)
-            esp32_manager.send_button('A', wait=0.5)
+            await esp32_manager.send_button('START', wait=0.5)
+            await esp32_manager.send_button('A', wait=0.5)
 
             self.last_press_time = curr_time
             self.state = "PHASE_2_OVERWORLD"
@@ -250,20 +251,20 @@ class GameEngine:
         # Check for load game menu
         match, score = opencv_detector.check_template(gray, 'load', 0.70)
         if match and curr_time - self.last_press_time > 0.6:
-            esp32_manager.send_button('A')
+            await esp32_manager.send_button('A')
             self.last_press_time = curr_time
             return False
         
         # Check for title screen
         match, score = opencv_detector.check_template(gray, 'title', 0.80)
         if match and curr_time - self.last_press_time > 0.6:
-            esp32_manager.send_button('A')
+            await esp32_manager.send_button('A')
             self.last_press_time = curr_time
             return False
         
         # Default: mash A to get through menus
         if curr_time - self.last_press_time > 0.6:
-            esp32_manager.send_button('A')
+            await esp32_manager.send_button('A')
             self.last_press_time = curr_time
         
         return False
@@ -280,17 +281,17 @@ class GameEngine:
         
         # Use B to clear dialogue
         if curr_time - self.last_press_time > 0.6:
-            esp32_manager.send_button('A', wait=0.5)
-            esp32_manager.send_button('START', wait=0.5)
+            await esp32_manager.send_button('A', wait=0.5)
+            await esp32_manager.send_button('START', wait=0.5)
             self.last_press_time = curr_time
         
         return False
     
     async def _phase_2_wait(self, curr_time) -> bool:
         """Phase 2 Wait: Non-blocking delay for text to clear."""
-        esp32_manager.send_button('A', wait=1.0)
+        await esp32_manager.send_button('A', wait=1.0)
         if curr_time - self.wait_start_time > 7.0:
-            esp32_manager.send_button('START', wait=1.0)
+            await esp32_manager.send_button('START', wait=1.0)
             self.state = "PHASE_3_MENU"
             await self.send_ws_update("state_update", {
                 "state": self.state,
@@ -324,14 +325,14 @@ class GameEngine:
         if match:
             # Select Charmander (3rd option - press DOWN twice)
             logger.info("FOUND THE CHOOSE NOW CLICKING A")
-            esp32_manager.send_button('A', wait=0.5)
+            await esp32_manager.send_button('A', wait=0.5)
             self.last_press_time = curr_time
             return False
         
         # Check for Pokemon menu entry
         match, score = opencv_detector.check_template(gray, 'pokemon', 0.85)
         if match:
-            esp32_manager.send_button('A', wait=0.1)
+            await esp32_manager.send_button('A', wait=0.1)
             self.last_press_time = curr_time
             return False
         
@@ -344,9 +345,9 @@ class GameEngine:
         if curr_time - self.wait_start_time < 1.5:
             return False  # Wait for summary screen animation
         
-        # Flush camera buffer for fresh frame
+        # Flush camera buffer for fresh frame (non-blocking wait)
         logger.info("Flushing camera buffer...")
-        video_capture.flush_buffer(20)
+        await asyncio.sleep(20 / 30.0)  # Wait ~0.67s for fresh frames
         
         # Get fresh frame
         result = video_capture.read_frame()
@@ -377,7 +378,7 @@ class GameEngine:
                 is_shiny=True,
                 session_id=self.session_id,
                 hunt_id=self.hunt_id,
-                screenshot_path=str(screenshot_path),
+                screenshot_path=f"/encounters/{screenshot_path.name}",
                 detection_confidence=yellow_pixels / settings.yellow_star_threshold,
                 state_at_capture=self.state
             )
@@ -412,8 +413,12 @@ class GameEngine:
             return True  # SHINY FOUND - STOP AUTOMATION
         
         # Not shiny - collect stats
+        # Run CPU-bound OCR in thread pool to avoid blocking event loop
+        loop = asyncio.get_event_loop()
         gender = opencv_detector.detect_gender(fresh_frame)
-        nature = opencv_detector.detect_nature(fresh_frame)
+        nature = await loop.run_in_executor(
+            None, opencv_detector.detect_nature, fresh_frame
+        )
         
         # Update in-memory stats
         self.last_gender = gender
@@ -432,7 +437,7 @@ class GameEngine:
             nature=nature,
             session_id=self.session_id,
             hunt_id=self.hunt_id,
-            screenshot_path=str(screenshot_path),
+            screenshot_path=f"/encounters/{screenshot_path.name}",
             detection_confidence=yellow_pixels / settings.yellow_star_threshold,
             state_at_capture=self.state
         )
@@ -468,14 +473,14 @@ class GameEngine:
         reset_success = False
         
         for attempt in range(1, max_retries + 1):
-            result = esp32_manager.send_combo('RESET', settings.soft_reset_hold)
+            result = await esp32_manager.send_combo('RESET', settings.soft_reset_hold)
             if result:
                 reset_success = True
                 break
             else:
                 logger.warning(f"RESET command failed (attempt {attempt}/{max_retries})")
                 if attempt < max_retries:
-                    time.sleep(1.0)  # Wait before retry
+                    await asyncio.sleep(1.0)  # Wait before retry
         
         if not reset_success:
             logger.error(
@@ -483,7 +488,7 @@ class GameEngine:
                 f"Game may be out of sync. Forcing state to PHASE_1_BOOT anyway."
             )
         
-        time.sleep(settings.soft_reset_wait)
+        await asyncio.sleep(settings.soft_reset_wait)
         
         self.state = "PHASE_1_BOOT"
         await self.send_ws_update("state_update", {

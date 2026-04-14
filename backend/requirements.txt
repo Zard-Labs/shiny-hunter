@@ -11,7 +11,7 @@ numpy
 pillow
 python-dotenv
 aiofiles
-requests
+httpx
 pyyaml
 pyserial
 rapidocr_onnxruntime

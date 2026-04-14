@@ -19,7 +19,7 @@ from app.utils.logger import logger
 app = FastAPI(
     title="Shiny Charmander Hunter",
     description="Automated shiny hunting system for Pokemon Red on Switch",
-    version="1.3.0"
+    version="1.4.0"
 )
 
 # Configure CORS - in desktop mode, allow all origins since Electron loads from localhost
@@ -98,7 +98,7 @@ async def startup_event():
     logger.info("[OK] OpenCV templates loaded")
     
     # Connect to ESP32
-    if esp32_manager.connect():
+    if await esp32_manager.connect():
         logger.info("[OK] ESP32-S3 connected")
     else:
         logger.warning("[!] ESP32-S3 not connected (will retry on demand)")
@@ -124,7 +124,7 @@ async def shutdown_event():
         game_engine.stop()
     
     # Disconnect ESP32
-    esp32_manager.disconnect()
+    await esp32_manager.disconnect()
     
     # Close video capture
     video_capture.close()

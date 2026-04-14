@@ -31,7 +31,7 @@ async def send_button_command(command: ButtonCommand):
                 detail="ESP32-S3 not connected. Please connect first."
             )
         
-        success = esp32_manager.send_button(command.button)
+        success = await esp32_manager.send_button(command.button)
         
         if not success:
             raise HTTPException(
@@ -56,7 +56,7 @@ async def send_button_command(command: ButtonCommand):
 async def get_esp32_status():
     """Get ESP32-S3 connection status."""
     try:
-        status = esp32_manager.get_status()
+        status = await esp32_manager.get_status()
         return status
     
     except Exception as e:
@@ -68,7 +68,7 @@ async def get_esp32_status():
 async def connect_esp32():
     """Connect to ESP32-S3."""
     try:
-        success = esp32_manager.connect()
+        success = await esp32_manager.connect()
         
         if not success:
             raise HTTPException(
@@ -92,7 +92,7 @@ async def connect_esp32():
 async def disconnect_esp32():
     """Disconnect from ESP32-S3."""
     try:
-        esp32_manager.disconnect()
+        await esp32_manager.disconnect()
         
         return {
             "status": "disconnected",
@@ -131,7 +131,7 @@ async def update_esp32_config(config: ESP32ConfigUpdate):
             raise HTTPException(status_code=400, detail="IP address or hostname is required")
         
         # Attempt to connect with the new IP
-        success = esp32_manager.update_ip(ip, port)
+        success = await esp32_manager.update_ip(ip, port)
         
         # Save to config.yaml if requested
         if config.save:

@@ -1,10 +1,19 @@
 import { useState } from 'react'
+import { API_BASE_URL } from '../services/api'
 
 function HistoryTable({ history }) {
   const [selectedEncounter, setSelectedEncounter] = useState(null)
 
   const formatTimestamp = (timestamp) => {
     return new Date(timestamp).toLocaleString()
+  }
+
+  /** Build a full screenshot URL, handling both relative paths and legacy absolute paths. */
+  const getScreenshotUrl = (path) => {
+    if (!path) return null
+    // Extract just the filename to be safe (handles Windows backslash paths)
+    const filename = path.split(/[/\\]/).pop()
+    return `${API_BASE_URL}/encounters/${filename}`
   }
 
   return (
@@ -111,8 +120,8 @@ function HistoryTable({ history }) {
             {selectedEncounter.screenshot_path && (
               <div style={{ marginBottom: '1rem' }}>
                 <div className="stat-label" style={{ marginBottom: '0.5rem' }}>Screenshot</div>
-                <img 
-                  src={`http://localhost:8000${selectedEncounter.screenshot_path}`} 
+                <img
+                  src={getScreenshotUrl(selectedEncounter.screenshot_path)}
                   alt="Encounter"
                   style={{ 
                     width: '100%', 

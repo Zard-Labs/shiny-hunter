@@ -1,4 +1,5 @@
 """Statistics, history, and hunt management endpoints."""
+import os
 import uuid
 from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -11,6 +12,22 @@ from app.models import Encounter, Hunt
 from app.schemas import StatisticsResponse, HistoryResponse, EncounterResponse, HuntResponse
 from app.services.game_engine import game_engine
 from app.utils.logger import logger
+
+
+def _normalize_screenshot_path(path: str) -> str:
+    """Convert absolute filesystem paths to relative URL paths.
+
+    Existing DB records may contain full Windows paths like
+    ``C:\\Users\\...\\encounters\\encounter_0001.png``.  New records
+    store ``/encounters/filename.png`` already, so this is a no-op
+    for them.
+    """
+    if not path:
+        return path
+    if path.startswith("/encounters/"):
+        return path  # already a proper URL path
+    filename = os.path.basename(path)  # handles both / and \ separators
+    return f"/encounters/{filename}"
 
 
 router = APIRouter(prefix="/api/statistics", tags=["statistics"])
@@ -136,9 +153,18 @@ async def get_encounter_history(
             .limit(limit)\
             .all()
         
+        # Normalise screenshot_path for every record so the frontend
+        # always receives a relative URL (handles legacy absolute paths).
+        enc_responses = []
+        for e in encounters:
+            resp = EncounterResponse.from_orm(e)
+            if resp.screenshot_path:
+                resp.screenshot_path = _normalize_screenshot_path(resp.screenshot_path)
+            enc_responses.append(resp)
+
         return HistoryResponse(
             total=total,
-            encounters=[EncounterResponse.from_orm(e) for e in encounters]
+            encounters=enc_responses,
         )
     
     except Exception as e:

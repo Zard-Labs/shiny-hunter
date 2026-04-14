@@ -1,5 +1,9 @@
-"""ESP32-S3 communication manager for WiFi/UART commands."""
-import requests
+"""ESP32-S3 communication manager for WiFi/UART commands.
+
+Fully async — uses httpx for non-blocking HTTP and asyncio.sleep
+for delays, so the event loop stays responsive during button presses.
+"""
+import httpx
 import serial
 import asyncio
 import time
@@ -11,14 +15,15 @@ from app.utils.logger import logger
 
 class ESP32Manager:
     """
-    Manager for communicating with ESP32-S3.
-    Supports both WiFi (HTTP) and UART (Serial) communication modes.
+    Async manager for communicating with ESP32-S3.
+    Supports both WiFi (HTTP via httpx) and UART (Serial) communication modes.
     """
     
     def __init__(self):
         self.mode = settings.communication_mode
         self.connected = False
         self.serial_port: Optional[serial.Serial] = None
+        self._client: Optional[httpx.AsyncClient] = None
         
         if self.mode == "wifi":
             self.base_url = f"http://{settings.esp32_ip}:{settings.esp32_port}"
@@ -26,7 +31,19 @@ class ESP32Manager:
         else:
             logger.info(f"ESP32 Manager initialized in UART mode: {settings.serial_port}")
     
-    def connect(self) -> bool:
+    async def _get_client(self) -> httpx.AsyncClient:
+        """Get or create the persistent async HTTP client."""
+        if self._client is None or self._client.is_closed:
+            self._client = httpx.AsyncClient(timeout=2.0)
+        return self._client
+    
+    async def _close_client(self):
+        """Close the async HTTP client."""
+        if self._client and not self._client.is_closed:
+            await self._client.aclose()
+            self._client = None
+    
+    async def connect(self) -> bool:
         """
         Establish connection to ESP32-S3.
         
@@ -35,8 +52,8 @@ class ESP32Manager:
         """
         try:
             if self.mode == "wifi":
-                # Test connection with status request
-                response = requests.get(f"{self.base_url}/status", timeout=2)
+                client = await self._get_client()
+                response = await client.get(f"{self.base_url}/status")
                 if response.status_code == 200:
                     self.connected = True
                     logger.info("[OK] Connected to ESP32-S3 via WiFi")
@@ -46,12 +63,16 @@ class ESP32Manager:
                     return False
             
             else:  # UART mode
-                self.serial_port = serial.Serial(
-                    settings.serial_port,
-                    settings.baud_rate,
-                    timeout=1
+                loop = asyncio.get_event_loop()
+                self.serial_port = await loop.run_in_executor(
+                    None,
+                    lambda: serial.Serial(
+                        settings.serial_port,
+                        settings.baud_rate,
+                        timeout=1
+                    )
                 )
-                time.sleep(0.5)  # Allow port to stabilize
+                await asyncio.sleep(0.5)  # Allow port to stabilize
                 self.connected = True
                 logger.info(f"[OK] Connected to ESP32-S3 via UART on {settings.serial_port}")
                 return True
@@ -61,15 +82,17 @@ class ESP32Manager:
             self.connected = False
             return False
     
-    def disconnect(self):
+    async def disconnect(self):
         """Disconnect from ESP32-S3."""
         if self.mode == "uart" and self.serial_port:
             self.serial_port.close()
             self.serial_port = None
+        
+        await self._close_client()
         self.connected = False
         logger.info("Disconnected from ESP32-S3")
     
-    def update_ip(self, ip: str, port: int = None) -> bool:
+    async def update_ip(self, ip: str, port: int = None) -> bool:
         """
         Update the ESP32 IP/hostname at runtime, then attempt to reconnect.
         
@@ -82,7 +105,7 @@ class ESP32Manager:
         """
         # Disconnect from current
         if self.connected:
-            self.disconnect()
+            await self.disconnect()
         
         # Update settings
         settings.esp32_ip = ip
@@ -95,11 +118,14 @@ class ESP32Manager:
             logger.info(f"ESP32 address updated to: {self.base_url}")
         
         # Attempt to connect
-        return self.connect()
+        return await self.connect()
     
-    def send_button(self, button: str, hold: float = None, wait: float = None) -> bool:
+    async def send_button(self, button: str, hold: float = None, wait: float = None) -> bool:
         """
-        Send button command to ESP32-S3.
+        Send button command to ESP32-S3 (non-blocking).
+        
+        Uses httpx for async HTTP and asyncio.sleep for delays,
+        so the event loop stays responsive during hold/wait periods.
         
         Args:
             button: Button name (e.g., 'A', 'START', 'UP')
@@ -120,29 +146,29 @@ class ESP32Manager:
             cmd = build_command(button)
             
             if self.mode == "wifi":
+                client = await self._get_client()
+                
                 # Send button press
-                response = requests.post(
+                response = await client.post(
                     f"{self.base_url}/button",
-                    json={"cmd": cmd},
-                    timeout=1
+                    json={"cmd": cmd}
                 )
                 
                 if response.status_code != 200:
                     logger.error(f"ESP32-S3 returned status {response.status_code}")
                     return False
                 
-                # Hold button
-                time.sleep(hold_duration)
+                # Hold button (non-blocking)
+                await asyncio.sleep(hold_duration)
                 
                 # Send release
-                requests.post(
+                await client.post(
                     f"{self.base_url}/button",
-                    json={"cmd": 0x00},
-                    timeout=1
+                    json={"cmd": 0x00}
                 )
                 
-                # Wait after release
-                time.sleep(wait_duration)
+                # Wait after release (non-blocking)
+                await asyncio.sleep(wait_duration)
                 
                 logger.debug(f"Sent button: {button} (hold={hold_duration}s, wait={wait_duration}s)")
                 return True
@@ -152,13 +178,19 @@ class ESP32Manager:
                     logger.error("Serial port not initialized")
                     return False
                 
-                # Send button press
-                self.serial_port.write(bytes([cmd]))
-                time.sleep(hold_duration)
+                loop = asyncio.get_event_loop()
+                
+                # Send button press (in executor to avoid blocking)
+                await loop.run_in_executor(
+                    None, self.serial_port.write, bytes([cmd])
+                )
+                await asyncio.sleep(hold_duration)
                 
                 # Send release
-                self.serial_port.write(bytes([0x00]))
-                time.sleep(wait_duration)
+                await loop.run_in_executor(
+                    None, self.serial_port.write, bytes([0x00])
+                )
+                await asyncio.sleep(wait_duration)
                 
                 logger.debug(f"Sent button: {button} (hold={hold_duration}s, wait={wait_duration}s)")
                 return True
@@ -167,7 +199,7 @@ class ESP32Manager:
             logger.error(f"Error sending button {button}: {e}")
             return False
     
-    def send_combo(self, button: str, hold: float) -> bool:
+    async def send_combo(self, button: str, hold: float) -> bool:
         """
         Send button combo (e.g., RESET) and hold for specified duration.
         
@@ -186,24 +218,24 @@ class ESP32Manager:
             cmd = build_command(button)
             
             if self.mode == "wifi":
+                client = await self._get_client()
+                
                 # Send combo press
-                response = requests.post(
+                response = await client.post(
                     f"{self.base_url}/button",
-                    json={"cmd": cmd},
-                    timeout=1
+                    json={"cmd": cmd}
                 )
                 
                 if response.status_code != 200:
                     return False
                 
-                # Hold for duration
-                time.sleep(hold)
+                # Hold for duration (non-blocking)
+                await asyncio.sleep(hold)
                 
                 # Send release
-                requests.post(
+                await client.post(
                     f"{self.base_url}/button",
-                    json={"cmd": 0x00},
-                    timeout=1
+                    json={"cmd": 0x00}
                 )
                 
                 logger.info(f"Sent combo: {button} (hold={hold}s)")
@@ -213,9 +245,15 @@ class ESP32Manager:
                 if not self.serial_port:
                     return False
                 
-                self.serial_port.write(bytes([cmd]))
-                time.sleep(hold)
-                self.serial_port.write(bytes([0x00]))
+                loop = asyncio.get_event_loop()
+                
+                await loop.run_in_executor(
+                    None, self.serial_port.write, bytes([cmd])
+                )
+                await asyncio.sleep(hold)
+                await loop.run_in_executor(
+                    None, self.serial_port.write, bytes([0x00])
+                )
                 
                 logger.info(f"Sent combo: {button} (hold={hold}s)")
                 return True
@@ -224,7 +262,7 @@ class ESP32Manager:
             logger.error(f"Error sending combo {button}: {e}")
             return False
     
-    def get_status(self) -> dict:
+    async def get_status(self) -> dict:
         """
         Get ESP32-S3 status.
         
@@ -236,7 +274,8 @@ class ESP32Manager:
         
         try:
             if self.mode == "wifi":
-                response = requests.get(f"{self.base_url}/status", timeout=2)
+                client = await self._get_client()
+                response = await client.get(f"{self.base_url}/status")
                 if response.status_code == 200:
                     return {"connected": True, **response.json()}
                 return {"connected": False}
