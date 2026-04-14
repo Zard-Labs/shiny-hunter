@@ -32,9 +32,21 @@ class ESP32Manager:
             logger.info(f"ESP32 Manager initialized in UART mode: {settings.serial_port}")
     
     async def _get_client(self) -> httpx.AsyncClient:
-        """Get or create the persistent async HTTP client."""
+        """Get or create the persistent async HTTP client.
+        
+        Uses a generous connect timeout (10s) for mDNS .local resolution
+        which can be slow on the first lookup, while keeping read/write
+        tight (2s) for responsive button commands.
+        """
         if self._client is None or self._client.is_closed:
-            self._client = httpx.AsyncClient(timeout=2.0)
+            self._client = httpx.AsyncClient(
+                timeout=httpx.Timeout(
+                    connect=10.0,   # mDNS .local can be slow on first resolve
+                    read=2.0,
+                    write=2.0,
+                    pool=5.0,
+                )
+            )
         return self._client
     
     async def _close_client(self):
@@ -52,6 +64,7 @@ class ESP32Manager:
         """
         try:
             if self.mode == "wifi":
+                logger.info(f"Connecting to ESP32 at {self.base_url}/status ...")
                 client = await self._get_client()
                 response = await client.get(f"{self.base_url}/status")
                 if response.status_code == 200:
@@ -78,7 +91,7 @@ class ESP32Manager:
                 return True
         
         except Exception as e:
-            logger.error(f"Failed to connect to ESP32-S3: {e}")
+            logger.error(f"Failed to connect to ESP32-S3: {type(e).__name__}: {e}")
             self.connected = False
             return False
     
