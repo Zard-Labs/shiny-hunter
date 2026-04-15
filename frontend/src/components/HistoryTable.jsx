@@ -11,7 +11,13 @@ function HistoryTable({ history }) {
   /** Build a full screenshot URL, handling both relative paths and legacy absolute paths. */
   const getScreenshotUrl = (path) => {
     if (!path) return null
-    // Extract just the filename to be safe (handles Windows backslash paths)
+    // New format: /encounters/<hunt-uuid>/encounter_0001.png
+    // Old format: /encounters/encounter_0744.png
+    // Legacy:     C:\Users\...\encounters\encounter_0001.png
+    if (path.startsWith('/encounters/')) {
+      return `${API_BASE_URL}${path}`
+    }
+    // Legacy absolute path fallback — extract just the filename
     const filename = path.split(/[/\\]/).pop()
     return `${API_BASE_URL}/encounters/${filename}`
   }

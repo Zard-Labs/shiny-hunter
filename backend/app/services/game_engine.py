@@ -37,7 +37,7 @@ class DataDrivenGameEngine:
         # ── Runtime state ───────────────────────────────────────
         self.state = "IDLE"
         self.is_running = False
-        self.encounter_count = 0
+        self.encounter_count = 0          # per-hunt counter (display + DB)
         self.session_id: Optional[str] = None
         self.hunt_id: Optional[str] = None
         self.last_press_time = 0.0
@@ -138,16 +138,19 @@ class DataDrivenGameEngine:
     def _load_state_from_db(self, db: Session):
         """Load encounter count and stats from the database.
 
-        - encounter_count is GLOBAL (across all hunts) so image filenames
-          never collide.
+        - encounter_count is PER-HUNT so numbering restarts at 1 for each
+          new hunt.  Screenshots are stored in per-hunt subdirectories
+          (encounters/<hunt_id>/) so filenames never collide.
         - In-memory stats (genders, natures) are scoped to the active hunt.
         """
-        max_enc = db.query(sql_func.max(Encounter.encounter_number)).scalar()
-        self.encounter_count = max_enc or 0
-
         active_hunt = db.query(Hunt).filter(Hunt.status == 'active').first()
         if active_hunt:
             self.hunt_id = active_hunt.id
+
+            hunt_encounter_count = db.query(sql_func.count(Encounter.id)).filter(
+                Encounter.hunt_id == active_hunt.id
+            ).scalar() or 0
+            self.encounter_count = hunt_encounter_count
 
             hunt_encounters = db.query(Encounter).filter(
                 Encounter.hunt_id == active_hunt.id
@@ -176,9 +179,10 @@ class DataDrivenGameEngine:
             logger.info(
                 f"Loaded state from DB: encounter_count={self.encounter_count}, "
                 f"hunt_id={self.hunt_id}, "
-                f"hunt_encounters={len(hunt_encounters)}"
+                f"hunt_encounters={hunt_encounter_count}"
             )
         else:
+            self.encounter_count = 0
             logger.warning("No active hunt found in DB")
 
     # ================================================================
@@ -241,7 +245,7 @@ class DataDrivenGameEngine:
         logger.info(
             f"[OK] Automation started — Template: '{self.template_name}', "
             f"Session: {self.session_id}, Hunt: {self.hunt_id}, "
-            f"resuming from encounter {self.encounter_count}"
+            f"resuming from hunt encounter {self.encounter_count}"
         )
         return self.session_id
 
@@ -261,6 +265,23 @@ class DataDrivenGameEngine:
         self.last_gender = "Waiting..."
         self.genders_seen = {'Male': 0, 'Female': 0, 'Unknown': 0}
         self.natures_seen = {}
+
+    def _screenshot_dir(self) -> Path:
+        """Return the per-hunt screenshot directory, creating it if needed.
+
+        Layout: ``<screenshot_directory>/<hunt_id>/``
+        Falls back to the flat ``<screenshot_directory>/`` when no hunt is set.
+        """
+        if is_packaged():
+            base = get_user_data_path() / settings.screenshot_directory
+        else:
+            base = Path(__file__).parent.parent.parent / settings.screenshot_directory
+        if self.hunt_id:
+            target = base / self.hunt_id
+        else:
+            target = base
+        target.mkdir(parents=True, exist_ok=True)
+        return target
 
     def _get_step_info(self) -> Dict[str, Any]:
         """Compute current step metadata from the loaded template."""
@@ -460,16 +481,18 @@ class DataDrivenGameEngine:
             return False
         fresh_frame, fresh_gray = result
 
-        # ── 3. Save screenshot ──────────────────────────────────
+        # ── 3. Save screenshot (per-hunt subdirectory) ─────────
         self.encounter_count += 1
-        if is_packaged():
-            screenshot_dir = get_user_data_path() / settings.screenshot_directory
-        else:
-            screenshot_dir = Path(__file__).parent.parent.parent / settings.screenshot_directory
-        screenshot_dir.mkdir(exist_ok=True)
+        screenshot_dir = self._screenshot_dir()
         screenshot_path = screenshot_dir / f"encounter_{self.encounter_count:04d}.png"
         cv2.imwrite(str(screenshot_path), fresh_frame)
         logger.info(f"[Screenshot] Saved: {screenshot_path.name}")
+
+        # Build relative URL path for DB / WebSocket
+        if self.hunt_id:
+            screenshot_url = f"/encounters/{self.hunt_id}/{screenshot_path.name}"
+        else:
+            screenshot_url = f"/encounters/{screenshot_path.name}"
 
         # ── 4. Detect shiny (uses global calibration zones) ──────
         is_shiny, yellow_pixels = opencv_detector.detect_shiny(fresh_frame)
@@ -478,7 +501,8 @@ class DataDrivenGameEngine:
 
         if is_shiny:
             return await self._handle_shiny_found(
-                fresh_frame, screenshot_path, yellow_pixels, threshold, db
+                fresh_frame, screenshot_path, screenshot_url,
+                yellow_pixels, threshold, db
             )
 
         # ── 5. Not shiny — collect stats ────────────────────────
@@ -513,7 +537,7 @@ class DataDrivenGameEngine:
             nature=nature,
             session_id=self.session_id,
             hunt_id=self.hunt_id,
-            screenshot_path=f"/encounters/{screenshot_path.name}",
+            screenshot_path=screenshot_url,
             detection_confidence=yellow_pixels / threshold if threshold else 0,
             state_at_capture=self.state,
         )
@@ -537,7 +561,7 @@ class DataDrivenGameEngine:
             "gender": gender,
             "nature": nature,
             "is_shiny": False,
-            "screenshot_url": f"/encounters/{screenshot_path.name}",
+            "screenshot_url": screenshot_url,
         })
 
         # ── 6. Execute on_normal_actions and transition ─────────
@@ -555,6 +579,7 @@ class DataDrivenGameEngine:
     # ================================================================
 
     async def _handle_shiny_found(self, frame, screenshot_path: Path,
+                                   screenshot_url: str,
                                    yellow_pixels: int, threshold: float,
                                    db: Session) -> bool:
         """Handle a confirmed shiny detection."""
@@ -566,7 +591,7 @@ class DataDrivenGameEngine:
             is_shiny=True,
             session_id=self.session_id,
             hunt_id=self.hunt_id,
-            screenshot_path=f"/encounters/{screenshot_path.name}",
+            screenshot_path=screenshot_url,
             detection_confidence=yellow_pixels / threshold if threshold else 0,
             state_at_capture=self.state,
         )
@@ -590,7 +615,7 @@ class DataDrivenGameEngine:
 
         await self.send_ws_update("shiny_found", {
             "encounter_number": self.encounter_count,
-            "screenshot_url": f"/encounters/{screenshot_path.name}",
+            "screenshot_url": screenshot_url,
             "timestamp": datetime.utcnow().isoformat(),
         })
 

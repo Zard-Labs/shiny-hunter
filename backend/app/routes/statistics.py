@@ -17,15 +17,16 @@ from app.utils.logger import logger
 def _normalize_screenshot_path(path: str) -> str:
     """Convert absolute filesystem paths to relative URL paths.
 
-    Existing DB records may contain full Windows paths like
-    ``C:\\Users\\...\\encounters\\encounter_0001.png``.  New records
-    store ``/encounters/filename.png`` already, so this is a no-op
-    for them.
+    Handles three formats:
+    1. New per-hunt paths: ``/encounters/<hunt-uuid>/encounter_0001.png`` → no-op
+    2. Old flat paths:     ``/encounters/encounter_0744.png``             → no-op
+    3. Legacy Windows:     ``C:\\Users\\...\\encounters\\encounter_0001.png``
+                           → ``/encounters/encounter_0001.png``
     """
     if not path:
         return path
     if path.startswith("/encounters/"):
-        return path  # already a proper URL path
+        return path  # already a proper URL path (flat or per-hunt subdir)
     filename = os.path.basename(path)  # handles both / and \ separators
     return f"/encounters/{filename}"
 
