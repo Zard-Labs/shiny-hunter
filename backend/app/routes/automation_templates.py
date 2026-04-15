@@ -501,10 +501,12 @@ async def get_image_preview(template_id: str, image_key: str):
     color_path = tmpl_dir / f"{image_key}_color.png"
     gray_path = tmpl_dir / f"{image_key}.png"
 
+    no_cache_headers = {"Cache-Control": "no-cache, must-revalidate"}
+
     if color_path.exists():
-        return FileResponse(str(color_path), media_type="image/png")
+        return FileResponse(str(color_path), media_type="image/png", headers=no_cache_headers)
     elif gray_path.exists():
-        return FileResponse(str(gray_path), media_type="image/png")
+        return FileResponse(str(gray_path), media_type="image/png", headers=no_cache_headers)
     else:
         raise HTTPException(status_code=404, detail="Image not found")
 

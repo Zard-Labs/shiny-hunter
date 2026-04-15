@@ -149,6 +149,10 @@ async def get_automation_status():
             "template_id": status.get("template_id"),
             "template_name": status.get("template_name"),
             "pokemon_name": status.get("pokemon_name"),
+            "current_step_index": status.get("current_step_index", -1),
+            "total_steps": status.get("total_steps", 0),
+            "step_display_name": status.get("step_display_name"),
+            "step_type": status.get("step_type"),
         }
     
     except Exception as e:

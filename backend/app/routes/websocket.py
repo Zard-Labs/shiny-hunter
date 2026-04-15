@@ -97,12 +97,16 @@ class ConnectionManager:
                                 self._annotation_counter = 0
                                 annotations = {
                                     "shiny_zone": settings.shiny_zone if settings.shiny_zone else {
-                                        "upper_x": 264, "upper_y": 109, 
+                                        "upper_x": 264, "upper_y": 109,
                                         "lower_x": 312, "lower_y": 151
                                     },
                                     "gender_zone": settings.gender_zone if settings.gender_zone else {
-                                        "upper_x": 284, "upper_y": 68, 
+                                        "upper_x": 284, "upper_y": 68,
                                         "lower_x": 311, "lower_y": 92
+                                    },
+                                    "nature_zone": settings.nature_text_zone if settings.nature_text_zone else {
+                                        "upper_x": 74, "upper_y": 249,
+                                        "lower_x": 424, "lower_y": 278
                                     }
                                 }
                                 await self._broadcast_json({

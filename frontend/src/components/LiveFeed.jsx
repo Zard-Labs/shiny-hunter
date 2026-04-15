@@ -109,6 +109,26 @@ function LiveFeed() {
           ctx.fillText('GENDER ZONE', ux, uy - 5)
         }
       }
+
+      if (annotations.nature_zone) {
+        const zone = annotations.nature_zone
+        const ux = zone.upper_x ?? zone.ux
+        const uy = zone.upper_y ?? zone.uy
+        const lx = zone.lower_x ?? zone.lx
+        const ly = zone.lower_y ?? zone.ly
+        
+        if (ux !== undefined && uy !== undefined && lx !== undefined && ly !== undefined) {
+          ctx.strokeStyle = '#ff64ff'
+          ctx.lineWidth = 2
+          ctx.strokeRect(ux, uy, lx - ux, ly - uy)
+          ctx.fillStyle = 'rgba(255, 100, 255, 0.1)'
+          ctx.fillRect(ux, uy, lx - ux, ly - uy)
+          
+          ctx.fillStyle = '#ff64ff'
+          ctx.font = '12px Courier New'
+          ctx.fillText('NATURE ZONE', ux, uy - 5)
+        }
+      }
     }
 
     fpsCounter.current++

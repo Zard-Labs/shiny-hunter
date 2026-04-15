@@ -13,7 +13,7 @@ function TemplateCapturePanel() {
   const [loading, setLoading] = useState(false)
   const [capturingKey, setCapturingKey] = useState(null)
   const [expanded, setExpanded] = useState(false)
-  const [cacheVersion, setCacheVersion] = useState(0)
+  const [cacheVersion, setCacheVersion] = useState(Date.now())
 
   useEffect(() => {
     fetchActiveTemplate()

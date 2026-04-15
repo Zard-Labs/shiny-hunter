@@ -3,7 +3,7 @@ import LiveFeed from './components/LiveFeed'
 import StatisticsPanel from './components/StatisticsPanel'
 import ControlPanel from './components/ControlPanel'
 import HistoryTable from './components/HistoryTable'
-import StatusDisplay from './components/StatusDisplay'
+import StateBanner from './components/StateBanner'
 import CalibrationModal from './components/CalibrationModal'
 import CameraSelector from './components/CameraSelector'
 import ESP32Config from './components/ESP32Config'
@@ -128,6 +128,14 @@ function App() {
           <CameraSelector onCameraChange={fetchData} />
           <ESP32Config />
           <TemplateCapturePanel />
+        </div>
+
+        <div className="center-panel">
+          <LiveFeed />
+          <StateBanner
+            status={automationStatus}
+            connected={connected}
+          />
           <ControlPanel
             isRunning={automationStatus.is_running}
             onRefresh={fetchData}
@@ -135,14 +143,6 @@ function App() {
             onNewHunt={handleNewHunt}
             onOpenTemplates={() => setShowTemplateLibrary(true)}
           />
-          <StatusDisplay
-            status={automationStatus}
-            connected={connected}
-          />
-        </div>
-
-        <div className="center-panel">
-          <LiveFeed />
         </div>
 
         <div className="right-panel">

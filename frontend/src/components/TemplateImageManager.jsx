@@ -12,7 +12,7 @@ function TemplateImageManager({ templateId, definition }) {
   const [images, setImages] = useState([])
   const [loading, setLoading] = useState(false)
   const [capturingKey, setCapturingKey] = useState(null)
-  const [cacheVersion, setCacheVersion] = useState(0)
+  const [cacheVersion, setCacheVersion] = useState(Date.now())
   const [showAddForm, setShowAddForm] = useState(false)
   const [newKey, setNewKey] = useState('')
   const [newLabel, setNewLabel] = useState('')

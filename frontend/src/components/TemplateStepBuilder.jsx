@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react'
 import RuleEditor from './RuleEditor'
 import ActionSequenceBuilder from './ActionSequenceBuilder'
-import DetectionConfigPanel from './DetectionConfigPanel'
+import SoftResetPanel from './SoftResetPanel'
 import TemplateImageManager from './TemplateImageManager'
 import {
   getAutomationTemplate,
   createAutomationTemplate,
   updateAutomationTemplate,
+  getAutomationTemplateImages,
 } from '../services/api'
 
 const STEP_TYPES = [
@@ -32,15 +33,23 @@ function TemplateStepBuilder({ templateId, onClose, onSaved }) {
   const [pokemonName, setPokemonName] = useState('Charmander')
   const [definition, setDefinition] = useState({ version: 1, steps: [], detection: {}, soft_reset: {} })
   const [selectedStepIndex, setSelectedStepIndex] = useState(0)
-  const [activeTab, setActiveTab] = useState('steps') // 'steps', 'detection', 'images'
+  const [activeTab, setActiveTab] = useState('steps') // 'steps', 'reset', 'images'
   const [saving, setSaving] = useState(false)
   const [dirty, setDirty] = useState(false)
+  const [apiImageKeys, setApiImageKeys] = useState([])
 
   const isNew = !templateId
+
+  const effectiveTemplateId = templateId || template?.id
 
   useEffect(() => {
     if (templateId) loadTemplate()
   }, [templateId])
+
+  // Fetch template images from backend whenever the template is loaded or tab changes
+  useEffect(() => {
+    if (effectiveTemplateId) fetchTemplateImageKeys()
+  }, [effectiveTemplateId, activeTab])
 
   const loadTemplate = async () => {
     try {
@@ -56,18 +65,27 @@ function TemplateStepBuilder({ templateId, onClose, onSaved }) {
     }
   }
 
+  const fetchTemplateImageKeys = async () => {
+    try {
+      const images = await getAutomationTemplateImages(effectiveTemplateId)
+      setApiImageKeys(images.map((img) => img.key))
+    } catch (err) {
+      console.error('Failed to fetch template image keys:', err)
+    }
+  }
+
   const steps = definition.steps || []
   const currentStep = steps[selectedStepIndex] || null
   const stepNames = steps.map((s) => s.name)
 
-  // Collect all template image keys from rules
-  const allTemplateKeys = []
+  // Collect template image keys from rules AND from API-stored images
+  const ruleTemplateKeys = []
   for (const step of steps) {
     for (const rule of step.rules || []) {
-      if (rule.condition?.template) allTemplateKeys.push(rule.condition.template)
+      if (rule.condition?.template) ruleTemplateKeys.push(rule.condition.template)
     }
   }
-  const uniqueTemplateKeys = [...new Set(allTemplateKeys)]
+  const uniqueTemplateKeys = [...new Set([...ruleTemplateKeys, ...apiImageKeys])].sort()
 
   const updateDefinition = (newDef) => {
     setDefinition(newDef)
@@ -255,7 +273,7 @@ function TemplateStepBuilder({ templateId, onClose, onSaved }) {
         }}>
           {[
             { key: 'steps', label: `📋 Steps (${steps.length})` },
-            { key: 'detection', label: '⭐ Detection' },
+            { key: 'reset', label: '🔄 Soft Reset' },
             { key: 'images', label: `🖼️ Images (${uniqueTemplateKeys.length})` },
           ].map((tab) => (
             <button
@@ -352,10 +370,10 @@ function TemplateStepBuilder({ templateId, onClose, onSaved }) {
             </div>
           )}
 
-          {/* Detection Tab */}
-          {activeTab === 'detection' && (
+          {/* Soft Reset Tab */}
+          {activeTab === 'reset' && (
             <div style={panelBg}>
-              <DetectionConfigPanel
+              <SoftResetPanel
                 definition={definition}
                 onChange={(newDef) => updateDefinition(newDef)}
               />

@@ -97,87 +97,50 @@ function ControlPanel({ isRunning, onRefresh, onCalibrate, onNewHunt, onOpenTemp
   }
 
   return (
-    <div className="panel control-panel">
+    <div className="panel control-panel-center">
       <h2 className="panel-title">⚡ Control Panel</h2>
 
-      {/* Template Selector */}
-      <div className="control-section" style={{ marginBottom: '1rem' }}>
-        <div style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          marginBottom: '0.4rem',
-        }}>
-          <label style={{
-            fontSize: '0.7rem',
-            color: 'var(--accent-magenta)',
-            textTransform: 'uppercase',
-            letterSpacing: '0.1em',
-          }}>Active Template</label>
-          <button
-            onClick={onOpenTemplates}
-            style={{
-              padding: '0.2rem 0.5rem',
-              background: 'transparent',
-              border: '1px solid var(--accent-cyan, #00ffff)',
-              color: 'var(--accent-cyan)',
-              borderRadius: '3px',
-              cursor: 'pointer',
-              fontSize: '0.7rem',
-            }}
-          >📚 Manage</button>
-        </div>
-        <select
-          value={activeTemplate?.id || ''}
-          onChange={handleTemplateChange}
-          disabled={isRunning}
-          style={{
-            width: '100%',
-            padding: '0.5rem 0.6rem',
-            background: 'var(--bg-secondary, #1a1a2e)',
-            border: '1px solid var(--accent-cyan, #00ffff)',
-            color: 'var(--text-primary, #e0e0e0)',
-            borderRadius: '4px',
-            fontFamily: "'Courier New', monospace",
-            fontSize: '0.8rem',
-            cursor: isRunning ? 'not-allowed' : 'pointer',
-            opacity: isRunning ? 0.6 : 1,
-          }}
-        >
-          {templates.length === 0 && <option value="">Loading...</option>}
-          {templates.map((t) => (
-            <option key={t.id} value={t.id}>
-              {t.name} ({t.pokemon_name})
-            </option>
-          ))}
-        </select>
-        {activeTemplate && (
-          <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
-            {activeTemplate.game} • {activeTemplate.step_count} steps • v{activeTemplate.version}
+      {/* Row 1: Template Selector + Start/Stop */}
+      <div className="cp-automation-row">
+        <div className="cp-template-group">
+          <div className="cp-template-header">
+            <label className="cp-template-label">Active Template</label>
+            <button onClick={onOpenTemplates} className="cp-manage-btn">📚 Manage</button>
           </div>
-        )}
-      </div>
-      
-      <div className="control-section">
-        <h3 style={{ fontSize: '1rem', color: 'var(--accent-magenta)', marginBottom: '1rem' }}>
-          AUTOMATION
-        </h3>
-        <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem' }}>
+          <select
+            value={activeTemplate?.id || ''}
+            onChange={handleTemplateChange}
+            disabled={isRunning}
+            className="cp-template-select"
+          >
+            {templates.length === 0 && <option value="">Loading...</option>}
+            {templates.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.name} ({t.pokemon_name})
+              </option>
+            ))}
+          </select>
+          {activeTemplate && (
+            <div className="cp-template-meta">
+              {activeTemplate.game} • {activeTemplate.step_count} steps • v{activeTemplate.version}
+            </div>
+          )}
+        </div>
+
+        <div className="cp-start-stop">
           {!isRunning ? (
-            <button 
-              className="btn btn-primary" 
+            <button
+              className="btn btn-primary cp-big-btn"
               onClick={handleStart}
               disabled={loading}
-              style={{ flex: 1 }}
             >
               {loading ? 'STARTING...' : '▶ START'}
             </button>
           ) : (
-            <button 
-              className="btn btn-danger" 
+            <button
+              className="btn btn-danger cp-big-btn"
               onClick={handleStop}
               disabled={loading}
-              style={{ flex: 1 }}
             >
               {loading ? 'STOPPING...' : '⏹ STOP'}
             </button>
@@ -185,163 +148,41 @@ function ControlPanel({ isRunning, onRefresh, onCalibrate, onNewHunt, onOpenTemp
         </div>
       </div>
 
-      <div className="control-section">
-        <h3 style={{ fontSize: '1rem', color: 'var(--accent-magenta)', marginBottom: '1rem' }}>
-          MANUAL CONTROLS
-        </h3>
-        
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.5rem', marginBottom: '1rem' }}>
-          <div></div>
-          <button 
-            className="btn-control" 
-            onClick={() => handleButtonPress('UP')}
-            disabled={isRunning}
-          >
-            ▲
-          </button>
-          <div></div>
-          
-          <button 
-            className="btn-control" 
-            onClick={() => handleButtonPress('LEFT')}
-            disabled={isRunning}
-          >
-            ◄
-          </button>
-          <button 
-            className="btn-control" 
-            onClick={() => handleButtonPress('DOWN')}
-            disabled={isRunning}
-          >
-            ▼
-          </button>
-          <button 
-            className="btn-control" 
-            onClick={() => handleButtonPress('RIGHT')}
-            disabled={isRunning}
-          >
-            ►
-          </button>
+      {/* Row 2: Manual Controls - horizontal layout */}
+      <div className="cp-manual-row">
+        {/* D-Pad */}
+        <div className="cp-dpad">
+          <div className="cp-dpad-grid">
+            <div />
+            <button className="btn-control cp-ctrl-sm" onClick={() => handleButtonPress('UP')} disabled={isRunning}>▲</button>
+            <div />
+            <button className="btn-control cp-ctrl-sm" onClick={() => handleButtonPress('LEFT')} disabled={isRunning}>◄</button>
+            <button className="btn-control cp-ctrl-sm" onClick={() => handleButtonPress('DOWN')} disabled={isRunning}>▼</button>
+            <button className="btn-control cp-ctrl-sm" onClick={() => handleButtonPress('RIGHT')} disabled={isRunning}>►</button>
+          </div>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.5rem', marginBottom: '1rem' }}>
-          <button 
-            className="btn-control" 
-            onClick={() => handleButtonPress('A')}
-            disabled={isRunning}
-          >
-            A
-          </button>
-          <button 
-            className="btn-control" 
-            onClick={() => handleButtonPress('B')}
-            disabled={isRunning}
-          >
-            B
-          </button>
-          <button 
-            className="btn-control" 
-            onClick={() => handleButtonPress('START')}
-            disabled={isRunning}
-          >
-            START
-          </button>
-          <button 
-            className="btn-control" 
-            onClick={() => handleButtonPress('SELECT')}
-            disabled={isRunning}
-          >
-            SELECT
-          </button>
+        {/* Action Buttons */}
+        <div className="cp-action-btns">
+          <button className="btn-control cp-ctrl-sm" onClick={() => handleButtonPress('A')} disabled={isRunning}>A</button>
+          <button className="btn-control cp-ctrl-sm" onClick={() => handleButtonPress('B')} disabled={isRunning}>B</button>
+          <button className="btn-control cp-ctrl-sm cp-ctrl-wide" onClick={() => handleButtonPress('START')} disabled={isRunning}>START</button>
+          <button className="btn-control cp-ctrl-sm cp-ctrl-wide" onClick={() => handleButtonPress('SELECT')} disabled={isRunning}>SELECT</button>
         </div>
 
-        <button 
-          className="btn btn-danger" 
-          onClick={() => handleButtonPress('RESET')}
-          disabled={isRunning}
-          style={{ width: '100%', marginBottom: '1rem' }}
-        >
-          SOFT RESET
-        </button>
+        {/* Utility Buttons */}
+        <div className="cp-utility-btns">
+          <button className="btn btn-danger cp-util-btn" onClick={() => handleButtonPress('RESET')} disabled={isRunning}>
+            SOFT RESET
+          </button>
+          <button className="btn btn-secondary cp-util-btn" onClick={onCalibrate}>
+            CALIBRATE
+          </button>
+          <button className="btn btn-new-hunt cp-util-btn" onClick={handleNewHunt} disabled={isRunning || resetting}>
+            {resetting ? 'CREATING...' : 'NEW HUNT'}
+          </button>
+        </div>
       </div>
-
-      <div className="control-section">
-        <button 
-          className="btn btn-secondary" 
-          onClick={onCalibrate}
-          style={{ width: '100%', marginBottom: '0.5rem' }}
-        >
-          CALIBRATE
-        </button>
-        
-        <button 
-          className="btn btn-new-hunt"
-          onClick={handleNewHunt}
-          disabled={isRunning || resetting}
-          style={{ width: '100%' }}
-        >
-          {resetting ? 'CREATING...' : 'NEW HUNT (RESET STATS)'}
-        </button>
-      </div>
-
-      <style>{`
-        .control-section {
-          margin-bottom: 1.5rem;
-        }
-
-        .btn-control {
-          padding: 1rem;
-          background: rgba(0, 255, 255, 0.05);
-          border: 1px solid var(--accent-cyan);
-          color: var(--accent-cyan);
-          font-family: 'Courier New', monospace;
-          font-size: 1.2rem;
-          font-weight: bold;
-          cursor: pointer;
-          border-radius: 4px;
-          transition: all 0.2s ease;
-        }
-
-        .btn-control:hover:not(:disabled) {
-          background: rgba(0, 255, 255, 0.2);
-          box-shadow: 0 0 15px rgba(0, 255, 255, 0.5);
-          transform: scale(1.05);
-        }
-
-        .btn-control:active:not(:disabled) {
-          transform: scale(0.95);
-        }
-
-        .btn-control:disabled {
-          opacity: 0.3;
-          cursor: not-allowed;
-        }
-
-        .btn-new-hunt {
-          padding: 0.7rem 1rem;
-          background: rgba(255, 165, 0, 0.1);
-          border: 1px solid #ff8c00;
-          color: #ff8c00;
-          font-family: 'Courier New', monospace;
-          font-size: 0.85rem;
-          font-weight: bold;
-          cursor: pointer;
-          border-radius: 4px;
-          transition: all 0.2s ease;
-          text-transform: uppercase;
-          letter-spacing: 0.05em;
-        }
-
-        .btn-new-hunt:hover:not(:disabled) {
-          background: rgba(255, 165, 0, 0.25);
-          box-shadow: 0 0 15px rgba(255, 165, 0, 0.4);
-        }
-
-        .btn-new-hunt:disabled {
-          opacity: 0.3;
-          cursor: not-allowed;
-        }
-      `}</style>
     </div>
   )
 }

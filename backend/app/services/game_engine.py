@@ -50,9 +50,6 @@ class DataDrivenGameEngine:
         self._definition: Optional[Dict[str, Any]] = None
         self._step_index: Dict[str, Dict] = {}        # name → step dict
         self._step_order: List[str] = []               # ordered step names
-        self._detection_config: Optional[Dict] = None
-        self._gender_config: Optional[Dict] = None
-        self._nature_config: Optional[Dict] = None
         self._soft_reset_config: Dict = {
             "hold_duration": 0.5,
             "wait_after": 3.0,
@@ -110,20 +107,13 @@ class DataDrivenGameEngine:
         self._step_index = {s["name"]: s for s in steps}
         self._step_order = [s["name"] for s in steps]
 
-        # Detection configs
-        self._detection_config = definition.get("detection")
-        self._gender_config = definition.get("gender_detection")
-        self._nature_config = definition.get("nature_detection")
+        # Soft reset config (per-template — varies by game)
         sr = definition.get("soft_reset", {})
         self._soft_reset_config = {
             "hold_duration": sr.get("hold_duration", 0.5),
             "wait_after": sr.get("wait_after", 3.0),
             "max_retries": sr.get("max_retries", 3),
         }
-
-        # Load detection config into the OpenCV detector
-        if self._detection_config:
-            opencv_detector.load_detection_config(self._detection_config)
 
         # Build key→filename map from DB rows and load images
         image_map: Dict[str, str] = {}
@@ -272,8 +262,32 @@ class DataDrivenGameEngine:
         self.genders_seen = {'Male': 0, 'Female': 0, 'Unknown': 0}
         self.natures_seen = {}
 
+    def _get_step_info(self) -> Dict[str, Any]:
+        """Compute current step metadata from the loaded template."""
+        if not self._step_order or self.state in ("IDLE", "STOPPED"):
+            return {
+                "current_step_index": -1,
+                "total_steps": len(self._step_order),
+                "step_display_name": None,
+                "step_type": None,
+            }
+
+        try:
+            idx = self._step_order.index(self.state)
+        except ValueError:
+            idx = -1
+
+        step = self._step_index.get(self.state)
+        return {
+            "current_step_index": idx,
+            "total_steps": len(self._step_order),
+            "step_display_name": step.get("display_name", self.state) if step else self.state,
+            "step_type": step.get("type") if step else None,
+        }
+
     def get_status(self) -> Dict[str, Any]:
         """Get current automation status."""
+        step_info = self._get_step_info()
         return {
             "is_running": self.is_running,
             "state": self.state,
@@ -287,6 +301,7 @@ class DataDrivenGameEngine:
             "last_gender": self.last_gender,
             "genders_seen": self.genders_seen,
             "natures_seen": self.natures_seen,
+            **step_info,
         }
 
     # ================================================================
@@ -456,11 +471,9 @@ class DataDrivenGameEngine:
         cv2.imwrite(str(screenshot_path), fresh_frame)
         logger.info(f"[Screenshot] Saved: {screenshot_path.name}")
 
-        # ── 4. Detect shiny ─────────────────────────────────────
-        is_shiny, yellow_pixels = opencv_detector.detect_shiny_with_config(
-            fresh_frame, self._detection_config
-        )
-        threshold = (self._detection_config or {}).get("threshold", settings.yellow_star_threshold)
+        # ── 4. Detect shiny (uses global calibration zones) ──────
+        is_shiny, yellow_pixels = opencv_detector.detect_shiny(fresh_frame)
+        threshold = settings.yellow_star_threshold
         logger.info(f"Shiny check: {yellow_pixels} yellow pixels (threshold: {threshold})")
 
         if is_shiny:
@@ -476,14 +489,11 @@ class DataDrivenGameEngine:
         nature = "Unknown"
 
         if collect_gender:
-            gender = opencv_detector.detect_gender_with_config(
-                fresh_frame, self._gender_config
-            )
+            gender = opencv_detector.detect_gender(fresh_frame)
         if collect_nature:
             loop = asyncio.get_event_loop()
             nature = await loop.run_in_executor(
-                None, opencv_detector.detect_nature_with_config,
-                fresh_frame, self._nature_config
+                None, opencv_detector.detect_nature, fresh_frame
             )
 
         # Update in-memory stats
@@ -680,10 +690,12 @@ class DataDrivenGameEngine:
         self.state = step_name
         self.wait_start_time = 0.0  # Reset wait timer for timed_wait steps
 
+        step_info = self._get_step_info()
         await self.send_ws_update("state_update", {
             "state": self.state,
             "encounter_number": self.encounter_count,
             "is_running": True,
+            **step_info,
         })
         logger.info(f"-> {step_name} (from {old_state})")
 
