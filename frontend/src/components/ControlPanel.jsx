@@ -6,11 +6,13 @@ import {
   resetStatistics,
   getAutomationTemplates,
   activateAutomationTemplate,
+  toggleContinuousMonitor,
 } from '../services/api'
 
-function ControlPanel({ isRunning, onRefresh, onCalibrate, onNewHunt, onOpenTemplates }) {
+function ControlPanel({ isRunning, monitorActive, onRefresh, onCalibrate, onNewHunt, onOpenTemplates }) {
   const [loading, setLoading] = useState(false)
   const [resetting, setResetting] = useState(false)
+  const [monitorToggling, setMonitorToggling] = useState(false)
   const [templates, setTemplates] = useState([])
   const [activeTemplate, setActiveTemplate] = useState(null)
 
@@ -96,6 +98,21 @@ function ControlPanel({ isRunning, onRefresh, onCalibrate, onNewHunt, onOpenTemp
     }
   }
 
+  const handleMonitorToggle = async () => {
+    setMonitorToggling(true)
+    try {
+      await toggleContinuousMonitor(!monitorActive)
+      onRefresh()
+    } catch (error) {
+      console.error('Failed to toggle monitor:', error)
+      if (error.response?.status === 409) {
+        alert('Automation must be running to toggle the shiny monitor.')
+      }
+    } finally {
+      setMonitorToggling(false)
+    }
+  }
+
   return (
     <div className="panel control-panel-center">
       <h2 className="panel-title">⚡ Control Panel</h2>
@@ -147,6 +164,68 @@ function ControlPanel({ isRunning, onRefresh, onCalibrate, onNewHunt, onOpenTemp
           )}
         </div>
       </div>
+
+      {/* Shiny Monitor Toggle — always visible for standalone testing */}
+      {(
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: '0.5rem 0.75rem',
+          marginBottom: '0.75rem',
+          background: monitorActive
+            ? 'rgba(0, 255, 136, 0.08)'
+            : 'rgba(255, 255, 255, 0.03)',
+          border: monitorActive
+            ? '1px solid rgba(0, 255, 136, 0.25)'
+            : '1px solid rgba(255, 255, 255, 0.08)',
+          borderRadius: '6px',
+          transition: 'all 0.2s ease',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <span style={{ fontSize: '1rem' }}>🔍</span>
+            <div>
+              <div style={{
+                fontSize: '0.8rem',
+                fontWeight: 'bold',
+                color: monitorActive ? 'var(--accent-green, #00ff88)' : 'var(--text-secondary)',
+              }}>
+                Shiny Monitor
+              </div>
+              <div style={{
+                fontSize: '0.65rem',
+                color: 'var(--text-secondary)',
+              }}>
+                {monitorActive ? 'Continuously scanning for shiny sparkles' : 'Background sparkle detection off'}
+              </div>
+            </div>
+          </div>
+          <button
+            onClick={handleMonitorToggle}
+            disabled={monitorToggling}
+            style={{
+              padding: '0.35rem 0.75rem',
+              fontSize: '0.75rem',
+              fontWeight: 'bold',
+              fontFamily: 'inherit',
+              borderRadius: '4px',
+              cursor: monitorToggling ? 'wait' : 'pointer',
+              border: monitorActive
+                ? '1px solid rgba(255, 100, 100, 0.4)'
+                : '1px solid rgba(0, 255, 136, 0.4)',
+              background: monitorActive
+                ? 'rgba(255, 100, 100, 0.1)'
+                : 'rgba(0, 255, 136, 0.1)',
+              color: monitorActive
+                ? '#ff6464'
+                : 'var(--accent-green, #00ff88)',
+              transition: 'all 0.2s ease',
+            }}
+          >
+            {monitorToggling ? '...' : monitorActive ? 'DISABLE' : 'ENABLE'}
+          </button>
+        </div>
+      )}
 
       {/* Row 2: Manual Controls - horizontal layout */}
       <div className="cp-manual-row">

@@ -161,6 +161,8 @@ async def get_encounter_history(
             resp = EncounterResponse.from_orm(e)
             if resp.screenshot_path:
                 resp.screenshot_path = _normalize_screenshot_path(resp.screenshot_path)
+            if resp.video_clip_path:
+                resp.video_clip_path = _normalize_screenshot_path(resp.video_clip_path)
             enc_responses.append(resp)
 
         return HistoryResponse(

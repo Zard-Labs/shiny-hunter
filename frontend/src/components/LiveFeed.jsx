@@ -129,6 +129,60 @@ function LiveFeed() {
           ctx.fillText('NATURE ZONE', ux, uy - 5)
         }
       }
+
+      // Sparkle monitor overlay (when background monitor is active)
+      if (annotations.sparkle_monitor) {
+        const sm = annotations.sparkle_monitor
+        const zone = sm.zone || {}
+        const ux = zone.upper_x ?? 320
+        const uy = zone.upper_y ?? 40
+        const lx = zone.lower_x ?? 580
+        const ly = zone.lower_y ?? 200
+        const w = lx - ux
+        const h = ly - uy
+
+        // Determine colour based on result
+        const isShiny = sm.is_shiny
+        const borderColor = isShiny ? '#ff4444' : '#ffaa00'
+        const fillColor = isShiny ? 'rgba(255, 68, 68, 0.15)' : 'rgba(255, 170, 0, 0.08)'
+
+        // Draw ROI box
+        ctx.strokeStyle = borderColor
+        ctx.lineWidth = 2
+        ctx.setLineDash([6, 3])
+        ctx.strokeRect(ux, uy, w, h)
+        ctx.setLineDash([])
+        ctx.fillStyle = fillColor
+        ctx.fillRect(ux, uy, w, h)
+
+        // Label
+        ctx.fillStyle = borderColor
+        ctx.font = 'bold 11px Courier New'
+        ctx.fillText('🔍 SPARKLE MONITOR', ux, uy - 6)
+
+        // Stats panel (bottom-right of ROI)
+        const statsX = lx + 4
+        const statsY = uy
+        const lineH = 14
+
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.7)'
+        ctx.fillRect(statsX, statsY, 155, lineH * 5 + 6)
+        ctx.strokeStyle = borderColor
+        ctx.lineWidth = 1
+        ctx.strokeRect(statsX, statsY, 155, lineH * 5 + 6)
+
+        ctx.font = '11px Courier New'
+        ctx.fillStyle = '#ffaa00'
+        ctx.fillText(`Peak: ${sm.peak_count || 0}/${sm.roi_total_pixels || 0}`, statsX + 4, statsY + lineH)
+        ctx.fillText(`StdDev: ${(sm.stddev || 0).toFixed(1)}`, statsX + 4, statsY + lineH * 2)
+        ctx.fillText(`Elevated: ${sm.elevated_frames || 0}/${sm.total_frames || 0}`, statsX + 4, statsY + lineH * 3)
+        ctx.fillText(`Baseline: ${sm.baseline || 0}`, statsX + 4, statsY + lineH * 4)
+        
+        // Status line with color
+        ctx.fillStyle = isShiny ? '#ff4444' : '#00ff88'
+        ctx.font = 'bold 11px Courier New'
+        ctx.fillText(isShiny ? '⚠ SHINY!' : '✓ Normal', statsX + 4, statsY + lineH * 5)
+      }
     }
 
     fpsCounter.current++

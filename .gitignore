@@ -50,9 +50,11 @@ esp32/.pio/
 esp32/.vscode/
 esp32/platformio.ini.user
 
-# Templates (may want to track these, but excluding for now)
-templates/
-!templates/.gitkeep
+# User template images (per-install captures — not tracked)
+backend/templates/
+!backend/templates/.gitkeep
+# Seed templates ARE tracked in git (community-contributed automation recipes)
+!backend/seed_templates/
 
 # Config overrides
 config.local.yaml

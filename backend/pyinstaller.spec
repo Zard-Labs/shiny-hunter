@@ -32,6 +32,11 @@ templates_dir = os.path.join(backend_dir, 'templates')
 if os.path.exists(templates_dir):
     datas.append(('templates', 'templates'))
 
+# Include seed_templates directory (bundled community automation recipes)
+seed_templates_dir = os.path.join(backend_dir, 'seed_templates')
+if os.path.exists(seed_templates_dir):
+    datas.append(('seed_templates', 'seed_templates'))
+
 # Collect rapidocr data files (models, etc.)
 try:
     datas += collect_data_files('rapidocr_onnxruntime')

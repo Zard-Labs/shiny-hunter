@@ -92,6 +92,7 @@ class Encounter(Base):
     session_id = Column(String(36))  # UUID for grouping sessions
     hunt_id = Column(String(36))  # UUID linking to active hunt
     screenshot_path = Column(String(255))
+    video_clip_path = Column(String(255))  # MP4 clip of sparkle analysis frames
     detection_confidence = Column(Float)  # 0.0 - 1.0
     state_at_capture = Column(String(50))  # State machine phase
     

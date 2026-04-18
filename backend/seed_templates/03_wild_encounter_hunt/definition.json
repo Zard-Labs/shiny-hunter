@@ -1,0 +1,129 @@
+{
+  "name": "Wild Encounter Hunt (Battle Sparkle)",
+  "description": "Shiny hunt via wild encounters. Walk in grass to trigger random battles, detect shiny via battle-entry sparkle animation, flee if not shiny. Supports two modes: inline sparkle check (battle_shiny_check step) or continuous background monitor.",
+  "game": "Pokemon FireRed/LeafGreen",
+  "pokemon_name": "Wild Pokemon",
+  "definition": {
+    "version": 2,
+    "continuous_monitor": {
+      "enabled": false,
+      "analysis_interval": 0.75,
+      "ring_buffer_frames": 180,
+      "analysis_frames": 60
+    },
+    "detection": {
+      "method": "battle_sparkle",
+      "zone": {
+        "upper_x": 320,
+        "upper_y": 40,
+        "lower_x": 580,
+        "lower_y": 200
+      },
+      "spark_threshold": 500,
+      "peak_threshold": 1000,
+      "min_spike_frames": 3,
+      "spike_delta_pct": 0.15,
+      "min_variance": 50.0,
+      "color_bounds": {
+        "lower_hsv": [0, 0, 200],
+        "upper_hsv": [60, 100, 255]
+      }
+    },
+    "gender_detection": {
+      "enabled": false,
+      "zone": {}
+    },
+    "nature_detection": {
+      "enabled": false,
+      "zone": {}
+    },
+    "soft_reset": {
+      "hold_duration": 0.5,
+      "wait_after": 3,
+      "max_retries": 3
+    },
+    "steps": [
+      {
+        "name": "WALK_IN_GRASS",
+        "display_name": "Walking in Grass",
+        "type": "navigate",
+        "cooldown": 0.3,
+        "rules": [
+          {
+            "condition": {
+              "type": "template_match",
+              "template": "battle_screen",
+              "threshold": 0.8
+            },
+            "actions": [],
+            "transition": "BATTLE_ENTRY"
+          }
+        ],
+        "default_action": [
+          { "type": "press_button", "button": "LEFT", "hold": 0.3, "wait": 0.1 },
+          { "type": "press_button", "button": "RIGHT", "hold": 0.3, "wait": 0.1 }
+        ]
+      },
+      {
+        "name": "BATTLE_ENTRY",
+        "display_name": "Battle Entry - Waiting for Pokemon",
+        "type": "timed_wait",
+        "duration": 2.0,
+        "during_wait_action": [],
+        "transition": "BATTLE_SPARKLE_CHECK"
+      },
+      {
+        "name": "BATTLE_SPARKLE_CHECK",
+        "display_name": "Checking for Shiny Sparkle",
+        "type": "battle_shiny_check",
+        "pre_check_delay": 0.5,
+        "capture_window_seconds": 1.5,
+        "ring_buffer_frames": 90,
+        "analysis_frames": 45,
+        "spark_threshold": 500,
+        "peak_threshold": 1000,
+        "min_spike_frames": 3,
+        "spike_delta_pct": 0.15,
+        "min_variance": 50.0,
+        "on_shiny": "STOP",
+        "on_normal_actions": [],
+        "on_normal_transition": "FLEE_BATTLE"
+      },
+      {
+        "name": "FLEE_BATTLE",
+        "display_name": "Fleeing Battle",
+        "type": "navigate",
+        "cooldown": 0.5,
+        "rules": [
+          {
+            "condition": {
+              "type": "template_match",
+              "template": "overworld",
+              "threshold": 0.8
+            },
+            "actions": [],
+            "transition": "WALK_IN_GRASS"
+          }
+        ],
+        "default_action": [
+          { "type": "press_button", "button": "RIGHT", "wait": 0.3 },
+          { "type": "press_button", "button": "A", "wait": 0.5 }
+        ]
+      }
+    ]
+  },
+  "images": [
+    {
+      "key": "battle_screen",
+      "label": "Battle Screen",
+      "description": "The battle screen showing the enemy Pokemon (used to detect battle start)",
+      "threshold": 0.80
+    },
+    {
+      "key": "overworld",
+      "label": "Overworld",
+      "description": "The overworld/grass area where encounters happen",
+      "threshold": 0.80
+    }
+  ]
+}

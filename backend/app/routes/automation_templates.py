@@ -13,7 +13,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.config import is_packaged, get_user_data_path
-from app.database import get_db, DEFAULT_TEMPLATE_DEFINITION
+from app.database import get_db
 from app.models import AutomationTemplate, TemplateImage
 from app.schemas import (
     AutomationTemplateCreate,

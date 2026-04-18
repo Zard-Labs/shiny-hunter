@@ -22,6 +22,16 @@ function HistoryTable({ history }) {
     return `${API_BASE_URL}/encounters/${filename}`
   }
 
+  /** Build a full video clip URL (same logic as screenshots). */
+  const getVideoUrl = (path) => {
+    if (!path) return null
+    if (path.startsWith('/encounters/')) {
+      return `${API_BASE_URL}${path}`
+    }
+    const filename = path.split(/[/\\]/).pop()
+    return `${API_BASE_URL}/encounters/${filename}`
+  }
+
   return (
     <div className="panel history-table">
       <h2 className="panel-title">📜 Encounter History</h2>
@@ -129,8 +139,8 @@ function HistoryTable({ history }) {
                 <img
                   src={getScreenshotUrl(selectedEncounter.screenshot_path)}
                   alt="Encounter"
-                  style={{ 
-                    width: '100%', 
+                  style={{
+                    width: '100%',
                     border: '2px solid var(--accent-cyan)',
                     borderRadius: '4px',
                     boxShadow: '0 0 20px rgba(0, 255, 255, 0.3)'
@@ -139,7 +149,24 @@ function HistoryTable({ history }) {
               </div>
             )}
 
-            <button 
+            {selectedEncounter.video_clip_path && (
+              <div style={{ marginBottom: '1rem' }}>
+                <div className="stat-label" style={{ marginBottom: '0.5rem' }}>Detection Clip</div>
+                <video
+                  src={getVideoUrl(selectedEncounter.video_clip_path)}
+                  controls
+                  loop
+                  style={{
+                    width: '100%',
+                    border: '2px solid var(--accent-magenta, #ff0088)',
+                    borderRadius: '4px',
+                    boxShadow: '0 0 20px rgba(255, 0, 136, 0.3)'
+                  }}
+                />
+              </div>
+            )}
+
+            <button
               className="btn" 
               onClick={() => setSelectedEncounter(null)}
               style={{ width: '100%' }}

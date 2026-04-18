@@ -4,9 +4,10 @@ import { getESP32Status } from '../services/api'
 const ESP32_POLL_MS = 30000
 
 const STEP_TYPE_ICONS = {
-  'navigate':    '🧭',
-  'timed_wait':  '⏳',
-  'shiny_check': '🔍',
+  'navigate':           '🧭',
+  'timed_wait':         '⏳',
+  'shiny_check':        '🔍',
+  'battle_shiny_check': '⚔️',
 }
 
 function StateBanner({ status, connected }) {
@@ -90,6 +91,10 @@ function StateBanner({ status, connected }) {
         <div className="state-banner__conn" title={`ESP32: ${esp32Status.connected ? 'Connected' : 'Disconnected'}`}>
           <span className={`state-banner__dot ${esp32Status.connected ? 'state-banner__dot--ok' : 'state-banner__dot--err'}`} />
           <span className="state-banner__conn-label">ESP32</span>
+        </div>
+        <div className="state-banner__conn" title={`Shiny Monitor: ${status.continuous_monitor_active ? 'Active' : 'Off'}`}>
+          <span className={`state-banner__dot ${status.continuous_monitor_active ? 'state-banner__dot--ok' : 'state-banner__dot--off'}`} />
+          <span className="state-banner__conn-label">MON</span>
         </div>
       </div>
     </div>

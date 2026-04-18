@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Query
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 import asyncio
+from enum import Enum
 
 from app.database import get_db
 from app.models import AutomationTemplate, TemplateImage
@@ -153,8 +154,53 @@ async def get_automation_status():
             "total_steps": status.get("total_steps", 0),
             "step_display_name": status.get("step_display_name"),
             "step_type": status.get("step_type"),
+            "continuous_monitor_active": status.get("continuous_monitor_active", False),
         }
     
     except Exception as e:
         logger.error(f"Error getting status: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+class MonitorToggleRequest(BaseModel):
+    enabled: bool
+
+
+@router.post("/continuous-monitor")
+async def toggle_continuous_monitor(
+    body: MonitorToggleRequest,
+    db: Session = Depends(get_db),
+):
+    """Toggle the continuous background sparkle monitor on or off.
+
+    Works both during automation and in standalone mode (for testing).
+    In standalone mode, loads the active template's detection config.
+    """
+    try:
+        # If no definition loaded yet, try loading the active template
+        if body.enabled and not game_engine._definition:
+            tmpl = db.query(AutomationTemplate).filter(
+                AutomationTemplate.is_active == True
+            ).first()
+            if tmpl:
+                images = db.query(TemplateImage).filter(
+                    TemplateImage.automation_template_id == tmpl.id
+                ).all()
+                game_engine.load_template(tmpl, images)
+            else:
+                raise HTTPException(
+                    status_code=404,
+                    detail="No active template found. Create or activate one first."
+                )
+
+        result = game_engine.toggle_sparkle_monitor(body.enabled)
+        if result.get("status") == "error":
+            raise HTTPException(status_code=400, detail=result.get("message", "Unknown error"))
+
+        return result
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error toggling continuous monitor: {e}")
         raise HTTPException(status_code=500, detail=str(e))

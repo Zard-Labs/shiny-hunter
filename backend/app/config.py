@@ -77,6 +77,8 @@ class Settings(BaseSettings):
     shiny_zone: Dict[str, int] = Field(default_factory=dict)
     gender_zone: Dict[str, int] = Field(default_factory=dict)
     nature_text_zone: Dict[str, int] = Field(default_factory=dict)
+    encounter_shiny_zone: Dict[str, int] = Field(default_factory=dict)
+    encounter_color_bounds: Dict[str, Any] = Field(default_factory=dict)
     yellow_star_threshold: int = 20
     blue_gender_threshold: int = 10
     red_gender_threshold: int = 10
@@ -161,6 +163,8 @@ def load_config() -> Settings:
         flat_config['shiny_zone'] = detect.get('shiny_zone', {})
         flat_config['gender_zone'] = detect.get('gender_zone', {})
         flat_config['nature_text_zone'] = detect.get('nature_text_zone', {})
+        flat_config['encounter_shiny_zone'] = detect.get('encounter_shiny_zone', {})
+        flat_config['encounter_color_bounds'] = detect.get('encounter_color_bounds', {})
         flat_config['yellow_star_threshold'] = detect.get('yellow_star_threshold', 20)
         flat_config['blue_gender_threshold'] = detect.get('blue_gender_threshold', 10)
         flat_config['red_gender_threshold'] = detect.get('red_gender_threshold', 10)

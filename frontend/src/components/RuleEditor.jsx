@@ -1,13 +1,45 @@
+import { useState } from 'react'
 import ActionSequenceBuilder from './ActionSequenceBuilder'
+import SnapshotROIPicker from './SnapshotROIPicker'
 
 function RuleEditor({ rule, onChange, onRemove, stepNames = [], templateKeys = [] }) {
   const condition = rule.condition || {}
+  const [showROIPicker, setShowROIPicker] = useState(false)
+
+  const hasROI = !!condition.roi
+  const roi = condition.roi || { x: 0, y: 0, width: 0, height: 0 }
 
   const updateCondition = (field, value) => {
     onChange({
       ...rule,
       condition: { ...condition, [field]: value },
     })
+  }
+
+  const updateROIField = (field, value) => {
+    const updated = { ...roi, [field]: parseInt(value, 10) || 0 }
+    updateCondition('roi', updated)
+  }
+
+  const toggleROI = () => {
+    if (hasROI) {
+      // Remove ROI from condition
+      const { roi: _, ...rest } = condition
+      onChange({ ...rule, condition: rest })
+    } else {
+      // Add empty ROI
+      updateCondition('roi', { x: 0, y: 0, width: 0, height: 0 })
+    }
+  }
+
+  const handleROISelected = (region) => {
+    updateCondition('roi', region)
+    setShowROIPicker(false)
+  }
+
+  const clearROI = () => {
+    const { roi: _, ...rest } = condition
+    onChange({ ...rule, condition: rest })
   }
 
   const updateActions = (actions) => {
@@ -42,6 +74,17 @@ function RuleEditor({ rule, onChange, onRemove, stepNames = [], templateKeys = [
     letterSpacing: '0.05em',
     marginBottom: '0.25rem',
     display: 'block',
+  }
+
+  const smallBtnStyle = {
+    padding: '0.2rem 0.5rem',
+    border: '1px solid rgba(255,255,255,0.15)',
+    borderRadius: '3px',
+    cursor: 'pointer',
+    fontSize: '0.7rem',
+    fontFamily: "'Courier New', monospace",
+    background: 'rgba(255,255,255,0.05)',
+    color: '#aaa',
   }
 
   return (
@@ -127,6 +170,97 @@ function RuleEditor({ rule, onChange, onRemove, stepNames = [], templateKeys = [
           </>
         )}
       </div>
+
+      {/* ROI (Search Region) — only for template_match */}
+      {condition.type === 'template_match' && (
+        <div style={{ marginBottom: '0.5rem' }}>
+          <label
+            style={{
+              ...labelStyle,
+              cursor: 'pointer',
+              userSelect: 'none',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.3rem',
+            }}
+            onClick={toggleROI}
+          >
+            <input
+              type="checkbox"
+              checked={hasROI}
+              onChange={toggleROI}
+              style={{ margin: 0, cursor: 'pointer' }}
+              onClick={(e) => e.stopPropagation()}
+            />
+            Limit search to region (ROI)
+          </label>
+
+          {hasROI && (
+            <div
+              style={{
+                marginTop: '0.35rem',
+                padding: '0.4rem',
+                border: '1px solid rgba(0, 255, 200, 0.15)',
+                borderRadius: '3px',
+                background: 'rgba(0, 255, 200, 0.03)',
+              }}
+            >
+              {/* Coordinate inputs */}
+              <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', marginBottom: '0.4rem' }}>
+                {['x', 'y', 'width', 'height'].map((field) => (
+                  <div key={field}>
+                    <label
+                      style={{
+                        fontSize: '0.65rem',
+                        color: '#00ffc8',
+                        textTransform: 'uppercase',
+                        display: 'block',
+                        marginBottom: '0.15rem',
+                      }}
+                    >
+                      {field === 'width' ? 'W' : field === 'height' ? 'H' : field.toUpperCase()}
+                    </label>
+                    <input
+                      type="number"
+                      value={roi[field] || 0}
+                      onChange={(e) => updateROIField(field, e.target.value)}
+                      style={{ ...inputStyle, width: '60px' }}
+                      min="0"
+                    />
+                  </div>
+                ))}
+              </div>
+
+              {/* Action buttons */}
+              <div style={{ display: 'flex', gap: '0.4rem' }}>
+                <button
+                  onClick={() => setShowROIPicker(true)}
+                  style={{
+                    ...smallBtnStyle,
+                    background: 'rgba(0, 255, 200, 0.1)',
+                    color: '#00ffc8',
+                    border: '1px solid rgba(0, 255, 200, 0.3)',
+                  }}
+                >
+                  📷 Draw on Snapshot
+                </button>
+                <button onClick={clearROI} style={smallBtnStyle}>
+                  ✕ Clear Region
+                </button>
+              </div>
+
+              {/* Inline snapshot ROI picker */}
+              {showROIPicker && (
+                <SnapshotROIPicker
+                  initialRegion={roi.width > 0 ? roi : null}
+                  onRegionSelected={handleROISelected}
+                  onCancel={() => setShowROIPicker(false)}
+                />
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Actions */}
       <div style={{ marginBottom: '0.5rem' }}>

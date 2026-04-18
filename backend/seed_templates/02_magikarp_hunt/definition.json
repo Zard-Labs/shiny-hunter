@@ -1,0 +1,194 @@
+{
+  "name": "RedGreen Magikarp Hunt",
+  "description": "Magikarp merchant shiny hunt in Pokemon FireRed/LeafGreen. Buy Magikarp \u2192 check summary for shiny \u2192 reset.",
+  "game": "Pokemon RedGreen",
+  "pokemon_name": "Magikarp",
+  "definition": {
+    "version": 1,
+    "detection": {
+      "method": "yellow_star_pixels",
+      "zone": {
+        "upper_x": 264,
+        "upper_y": 109,
+        "lower_x": 312,
+        "lower_y": 151
+      },
+      "threshold": 20,
+      "color_bounds": {
+        "lower_hsv": [20, 100, 150],
+        "upper_hsv": [35, 255, 255]
+      }
+    },
+    "gender_detection": {
+      "enabled": true,
+      "zone": {}
+    },
+    "nature_detection": {
+      "enabled": true,
+      "zone": {}
+    },
+    "soft_reset": {
+      "hold_duration": 0.5,
+      "wait_after": 3,
+      "max_retries": 3
+    },
+    "steps": [
+      {
+        "name": "KARP_BUY",
+        "display_name": "Magikarp Purchase?",
+        "type": "navigate",
+        "cooldown": 0.6,
+        "rules": [
+          {
+            "condition": {
+              "type": "template_match",
+              "template": "karp_purchase",
+              "threshold": 0.9
+            },
+            "actions": [
+              { "type": "wait", "button": "A", "duration": 1 },
+              { "type": "press_button", "button": "START", "wait": 0.8 },
+              { "type": "press_button", "button": "A", "wait": 2 },
+              { "type": "press_button", "button": "START", "wait": 1 },
+              { "type": "press_button", "button": "DOWN", "wait": 1 },
+              { "type": "press_button", "button": "A", "wait": 1 }
+            ],
+            "transition": "POKEMON_MENU"
+          }
+        ],
+        "default_action": [
+          { "type": "press_button", "button": "A", "wait": 0.5 }
+        ]
+      },
+      {
+        "name": "POKEMON_MENU",
+        "display_name": "Pokemon Menu",
+        "type": "navigate",
+        "cooldown": 0.6,
+        "rules": [
+          {
+            "condition": {
+              "type": "template_match",
+              "template": "pokemon_menu_karp",
+              "threshold": 0.9
+            },
+            "actions": [
+              { "type": "wait", "button": "A", "wait": 1, "duration": 1 },
+              { "type": "press_button", "button": "RIGHT", "wait": 1.5 },
+              { "type": "press_button", "button": "A" },
+              { "type": "press_button", "button": "A", "wait": 1 }
+            ],
+            "transition": "MAGIKARP_DETAILS"
+          }
+        ],
+        "default_action": []
+      },
+      {
+        "name": "MAGIKARP_DETAILS",
+        "display_name": "Magikarp Details Screen",
+        "type": "navigate",
+        "cooldown": 0.6,
+        "rules": [
+          {
+            "condition": {
+              "type": "template_match",
+              "template": "magikarp_summary",
+              "threshold": 0.95
+            },
+            "actions": [],
+            "transition": "SHINY_CHECK"
+          }
+        ],
+        "default_action": []
+      },
+      {
+        "name": "SHINY_CHECK",
+        "display_name": "Shiny Check",
+        "type": "shiny_check",
+        "pre_check_delay": 1.5,
+        "buffer_flush_frames": 20,
+        "collect_gender": true,
+        "collect_nature": true,
+        "on_shiny": "STOP",
+        "on_normal_actions": [
+          { "type": "soft_reset" }
+        ],
+        "on_normal_transition": "KARP_BUY"
+      }
+    ]
+  },
+  "images": [
+    {
+      "key": "title_screen",
+      "label": "Title Screen",
+      "description": "The game's main title/start screen",
+      "threshold": 0.80
+    },
+    {
+      "key": "load_game",
+      "label": "Load Game Menu",
+      "description": "The Continue / load save menu",
+      "threshold": 0.80
+    },
+    {
+      "key": "nickname_screen",
+      "label": "Nickname Screen",
+      "description": "The Give a nickname? prompt",
+      "threshold": 0.80
+    },
+    {
+      "key": "oak_lab",
+      "label": "Oak's Lab",
+      "description": "Professor Oak in his lab",
+      "threshold": 0.80
+    },
+    {
+      "key": "pokemon_menu",
+      "label": "Pokemon Menu",
+      "description": "The Pokemon party menu screen",
+      "threshold": 0.80
+    },
+    {
+      "key": "choose_pokemon",
+      "label": "Choose Pokemon",
+      "description": "Starter selection screen",
+      "threshold": 0.80
+    },
+    {
+      "key": "summary_screen",
+      "label": "Summary Screen",
+      "description": "Pokemon summary showing nature/stats",
+      "threshold": 0.80
+    },
+    {
+      "key": "pokemon_selected",
+      "label": "Pokemon All Selected",
+      "description": "The screen after pokemon have been selected.",
+      "threshold": 0.80
+    },
+    {
+      "key": "nickname_karp",
+      "label": "Nickname Magikarp",
+      "description": "Nickname Magikarp Question",
+      "threshold": 0.80
+    },
+    {
+      "key": "pokemon_menu_karp",
+      "label": "Pokemon Menu Screen Magikarp",
+      "description": "Pokemon Menu Screen Magikarp",
+      "threshold": 0.80
+    },
+    {
+      "key": "magikarp_summary",
+      "label": "Magikarp Summary",
+      "description": "Magikarp Summary Screen",
+      "threshold": 0.80
+    },
+    {
+      "key": "karp_purchase",
+      "label": "Magikarp Purchase",
+      "description": "Magikarp Purchase Question?",
+      "threshold": 0.80
+    }
+  ]
+}

@@ -109,6 +109,10 @@ class ConnectionManager:
                                         "lower_x": 424, "lower_y": 278
                                     }
                                 }
+                                # Include sparkle monitor stats if active
+                                sparkle_stats = game_engine.get_sparkle_monitor_stats()
+                                if sparkle_stats:
+                                    annotations["sparkle_monitor"] = sparkle_stats
                                 await self._broadcast_json({
                                     "type": "annotations",
                                     "data": annotations

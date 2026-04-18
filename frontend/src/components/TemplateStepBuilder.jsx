@@ -13,7 +13,8 @@ import {
 const STEP_TYPES = [
   { value: 'navigate', label: 'Navigate (Template Match + Buttons)' },
   { value: 'timed_wait', label: 'Timed Wait' },
-  { value: 'shiny_check', label: 'Shiny Check' },
+  { value: 'shiny_check', label: 'Shiny Check (Summary Screen)' },
+  { value: 'battle_shiny_check', label: '⚔️ Battle Sparkle Check' },
 ]
 
 const DEFAULT_STEP = {
@@ -587,6 +588,90 @@ function StepEditor({ step, onChange, onRemove, stepNames, templateKeys, inputSt
                 onChange={(e) => updateField('collect_nature', e.target.checked)} />
               Collect Nature
             </label>
+          </div>
+          <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
+            <div style={{ flex: 1 }}>
+              <label style={labelStyle}>On Normal → Go To</label>
+              <select value={step.on_normal_transition || ''}
+                onChange={(e) => updateField('on_normal_transition', e.target.value)}
+                style={{ ...inputStyle, cursor: 'pointer' }}>
+                <option value="">— none —</option>
+                {stepNames.map((n) => <option key={n} value={n}>{n}</option>)}
+              </select>
+            </div>
+          </div>
+          <div style={sectionStyle}>
+            <label style={labelStyle}>On Normal Actions (before transition)</label>
+            <ActionSequenceBuilder
+              actions={step.on_normal_actions || []}
+              onChange={(a) => updateField('on_normal_actions', a)}
+            />
+          </div>
+        </>
+      )}
+
+      {step.type === 'battle_shiny_check' && (
+        <>
+          <div style={{
+            padding: '0.4rem 0.5rem',
+            marginBottom: '0.5rem',
+            background: 'rgba(255, 170, 0, 0.08)',
+            border: '1px solid rgba(255, 170, 0, 0.2)',
+            borderRadius: '4px',
+            fontSize: '0.75rem',
+            color: 'var(--text-secondary)',
+            lineHeight: '1.5'
+          }}>
+            ⚔️ <strong>Battle Sparkle Check</strong> — Captures a window of frames during
+            battle entry and analyses them for the shiny sparkle animation.
+            Uses the ring buffer for multi-frame detection. Detection zone &amp;
+            thresholds can also be set in the template&apos;s top-level detection config.
+          </div>
+          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.5rem' }}>
+            <div>
+              <label style={labelStyle}>Pre-Check Delay (s)</label>
+              <input type="number" value={step.pre_check_delay ?? 0.5}
+                onChange={(e) => updateField('pre_check_delay', parseFloat(e.target.value) || 0)}
+                style={{ ...inputStyle, width: '80px' }} step="0.1" min="0" />
+            </div>
+            <div>
+              <label style={labelStyle}>Capture Window (s)</label>
+              <input type="number" value={step.capture_window_seconds ?? 1.5}
+                onChange={(e) => updateField('capture_window_seconds', parseFloat(e.target.value) || 0)}
+                style={{ ...inputStyle, width: '80px' }} step="0.1" min="0.5" />
+            </div>
+            <div>
+              <label style={labelStyle}>Analysis Frames</label>
+              <input type="number" value={step.analysis_frames ?? 45}
+                onChange={(e) => updateField('analysis_frames', parseInt(e.target.value) || 45)}
+                style={{ ...inputStyle, width: '70px' }} min="10" max="90" />
+            </div>
+            <div>
+              <label style={labelStyle}>Ring Buffer</label>
+              <input type="number" value={step.ring_buffer_frames ?? 90}
+                onChange={(e) => updateField('ring_buffer_frames', parseInt(e.target.value) || 90)}
+                style={{ ...inputStyle, width: '70px' }} min="30" max="300" />
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.5rem' }}>
+            <div>
+              <label style={labelStyle}>Spark Threshold</label>
+              <input type="number" value={step.spark_threshold ?? 10}
+                onChange={(e) => updateField('spark_threshold', parseInt(e.target.value) || 10)}
+                style={{ ...inputStyle, width: '70px' }} min="1" />
+            </div>
+            <div>
+              <label style={labelStyle}>Peak Threshold</label>
+              <input type="number" value={step.peak_threshold ?? 50}
+                onChange={(e) => updateField('peak_threshold', parseInt(e.target.value) || 50)}
+                style={{ ...inputStyle, width: '70px' }} min="1" />
+            </div>
+            <div>
+              <label style={labelStyle}>Min Spike Frames</label>
+              <input type="number" value={step.min_spike_frames ?? 3}
+                onChange={(e) => updateField('min_spike_frames', parseInt(e.target.value) || 3)}
+                style={{ ...inputStyle, width: '70px' }} min="1" />
+            </div>
           </div>
           <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
             <div style={{ flex: 1 }}>

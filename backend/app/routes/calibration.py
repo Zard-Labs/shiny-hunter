@@ -20,8 +20,14 @@ router = APIRouter(prefix="/api/calibration", tags=["calibration"])
 
 class ZoneSaveRequest(BaseModel):
     """Request to save a detection zone."""
-    zone_type: str  # "shiny", "gender", or "nature"
+    zone_type: str  # "shiny", "gender", "nature", or "encounter"
     coordinates: Dict[str, int]  # upper_x, upper_y, lower_x, lower_y
+
+
+class ColorBoundsSaveRequest(BaseModel):
+    """Request to save encounter sparkle HSV color bounds."""
+    lower_hsv: list  # [H, S, V]  e.g. [0, 0, 200]
+    upper_hsv: list  # [H, S, V]  e.g. [60, 100, 255]
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
@@ -30,6 +36,7 @@ ZONE_TYPE_MAP = {
     "shiny": "shiny_zone",
     "gender": "gender_zone",
     "nature": "nature_text_zone",
+    "encounter": "encounter_shiny_zone",
 }
 
 
@@ -101,8 +108,23 @@ async def get_current_calibration():
             "lower_x": 350, "lower_y": 380,
         }
 
+    if settings.encounter_shiny_zone:
+        zones["encounter"] = settings.encounter_shiny_zone
+    else:
+        zones["encounter"] = {
+            "upper_x": 320, "upper_y": 40,
+            "lower_x": 580, "lower_y": 200,
+        }
+
+    # Encounter sparkle HSV color bounds
+    color_bounds = settings.encounter_color_bounds if settings.encounter_color_bounds else {
+        "lower_hsv": [0, 0, 200],
+        "upper_hsv": [60, 100, 255],
+    }
+
     return {
         "zones": zones,
+        "encounter_color_bounds": color_bounds,
         "crop_mode": settings.crop_mode,
         "frame_size": _get_frame_size(),
     }
@@ -180,6 +202,55 @@ async def save_zone(request: ZoneSaveRequest):
         "message": f"{request.zone_type.capitalize()} zone saved and applied",
         "zone_type": request.zone_type,
         "coordinates": coords,
+    }
+
+
+@router.post("/encounter-color-bounds")
+async def save_encounter_color_bounds(request: ColorBoundsSaveRequest):
+    """
+    Save the encounter sparkle HSV color bounds globally.
+
+    Persists to config.yaml and updates in-memory settings so changes
+    take effect immediately for the SparkleMonitor.
+    """
+    # Validate HSV arrays have exactly 3 elements each
+    if len(request.lower_hsv) != 3 or len(request.upper_hsv) != 3:
+        raise HTTPException(
+            status_code=400,
+            detail="Both lower_hsv and upper_hsv must be arrays of exactly 3 values [H, S, V]"
+        )
+
+    bounds = {
+        "lower_hsv": [int(v) for v in request.lower_hsv],
+        "upper_hsv": [int(v) for v in request.upper_hsv],
+    }
+
+    # 1. Update in-memory settings immediately
+    settings.encounter_color_bounds = bounds
+    logger.info(f"In-memory encounter_color_bounds updated: {bounds}")
+
+    # 2. Persist to config.yaml
+    try:
+        config_data = _load_config_data()
+
+        if "detection" not in config_data:
+            config_data["detection"] = {}
+
+        config_data["detection"]["encounter_color_bounds"] = bounds
+        _save_config_data(config_data)
+
+    except Exception as e:
+        logger.error(f"Failed to persist encounter color bounds to config.yaml: {e}")
+        return {
+            "status": "partial",
+            "message": f"Color bounds applied in-memory but failed to save to disk: {e}",
+            "color_bounds": bounds,
+        }
+
+    return {
+        "status": "success",
+        "message": "Encounter color bounds saved and applied",
+        "color_bounds": bounds,
     }
 
 

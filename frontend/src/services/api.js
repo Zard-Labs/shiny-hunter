@@ -16,6 +16,10 @@ export const getAutomationStatus = async () => {
   const response = await api.get('/api/automation/status')
   return response.data
 }
+export const toggleContinuousMonitor = async (enabled) => {
+  const response = await api.post('/api/automation/continuous-monitor', { enabled })
+  return response.data
+}
 
 // Statistics (now supports optional hunt_id filter)
 export const getStatistics = async (huntId = null) => {
@@ -80,6 +84,14 @@ export const getCurrentCalibration = async () => {
 
 export const getCalibrationSnapshotUrl = () =>
   `${API_BASE_URL}/api/calibration/snapshot`
+
+export const saveEncounterColorBounds = async (lowerHsv, upperHsv) => {
+  const response = await api.post('/api/calibration/encounter-color-bounds', {
+    lower_hsv: lowerHsv,
+    upper_hsv: upperHsv,
+  })
+  return response.data
+}
 
 // Configuration
 export const getConfig = async () => {

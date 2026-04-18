@@ -96,6 +96,7 @@ class EncounterBase(BaseModel):
     session_id: Optional[str] = None
     hunt_id: Optional[str] = None
     screenshot_path: Optional[str] = None
+    video_clip_path: Optional[str] = None
     detection_confidence: Optional[float] = None
     state_at_capture: Optional[str] = None
 
@@ -210,11 +211,13 @@ class EncounterDetected(BaseModel):
     nature: str
     is_shiny: bool
     screenshot_url: str
+    video_clip_url: Optional[str] = None
 
 
 class ShinyFound(BaseModel):
     encounter_number: int
     screenshot_url: str
+    video_clip_url: Optional[str] = None
     timestamp: str
 
 

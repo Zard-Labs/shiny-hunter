@@ -138,6 +138,7 @@ function App() {
           />
           <ControlPanel
             isRunning={automationStatus.is_running}
+            monitorActive={automationStatus.continuous_monitor_active || false}
             onRefresh={fetchData}
             onCalibrate={() => setShowCalibration(true)}
             onNewHunt={handleNewHunt}

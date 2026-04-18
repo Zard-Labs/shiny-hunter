@@ -3,11 +3,12 @@
 Uses a dedicated background thread for frame capture to avoid blocking
 the async event loop. Provides thread-safe frame access and auto-recovery.
 """
+import collections
 import cv2
 import numpy as np
 import threading
 import time
-from typing import Optional, Tuple
+from typing import List, Optional, Tuple
 from app.config import settings
 from app.utils.logger import logger
 
@@ -48,6 +49,10 @@ class VideoCapture:
         # Pre-encoded JPEG for WebSocket broadcast (encode once, send to all)
         self._encoded_jpeg: Optional[bytes] = None
         self._encoded_frame_id: int = -1  # Which frame_id was encoded
+        
+        # Ring buffer for multi-frame analysis (battle sparkle detection)
+        self._ring_buffer: collections.deque = collections.deque(maxlen=90)
+        self._ring_buffer_enabled: bool = False
     
     def open(self) -> bool:
         """
@@ -207,6 +212,10 @@ class VideoCapture:
                     self._latest_frame = frame
                     self._latest_gray = gray
                     self._frame_id += 1
+                    
+                    # Append to ring buffer if enabled
+                    if self._ring_buffer_enabled:
+                        self._ring_buffer.append(frame.copy())
                 
                 if self.frame_count % 300 == 0:
                     logger.info(f"Capture thread: {self.frame_count} frames captured")
@@ -332,6 +341,74 @@ class VideoCapture:
             
             return self._encoded_jpeg, current_id
     
+    # ================================================================
+    #  Ring buffer for multi-frame analysis
+    # ================================================================
+
+    def enable_ring_buffer(self, max_frames: int = 90):
+        """
+        Enable the frame ring buffer for multi-frame analysis.
+        
+        Used by battle sparkle detection to store recent frames
+        for retrospective analysis of the sparkle animation.
+        
+        Args:
+            max_frames: Maximum number of frames to retain (default 90 = ~3s at 30fps)
+        """
+        with self._lock:
+            self._ring_buffer = collections.deque(maxlen=max_frames)
+            self._ring_buffer_enabled = True
+        logger.info(f"Ring buffer enabled (max_frames={max_frames})")
+
+    def disable_ring_buffer(self):
+        """Disable the ring buffer and free its memory."""
+        with self._lock:
+            self._ring_buffer_enabled = False
+            self._ring_buffer.clear()
+        logger.info("Ring buffer disabled")
+
+    def get_frame_window(self, num_frames: int = 45) -> List[np.ndarray]:
+        """
+        Return the most recent *num_frames* color frames from the ring buffer.
+
+        If fewer frames are available than requested, all available frames
+        are returned.  Each frame is a *copy* so the caller can safely
+        mutate or hold references without racing the capture thread.
+
+        Args:
+            num_frames: How many recent frames to retrieve.
+
+        Returns:
+            List of BGR colour frames (newest last).  May be empty if the
+            ring buffer is disabled or no frames have been captured yet.
+        """
+        with self._lock:
+            if not self._ring_buffer_enabled or len(self._ring_buffer) == 0:
+                return []
+            # Take the last num_frames (or fewer if not enough)
+            count = min(num_frames, len(self._ring_buffer))
+            # deque doesn't support slicing directly — convert tail
+            frames = list(self._ring_buffer)[-count:]
+            return [f.copy() for f in frames]
+
+    def clear_ring_buffer(self):
+        """Clear the ring buffer without disabling it."""
+        with self._lock:
+            self._ring_buffer.clear()
+        logger.debug("Ring buffer cleared")
+
+    @property
+    def ring_buffer_size(self) -> int:
+        """Current number of frames in the ring buffer."""
+        with self._lock:
+            return len(self._ring_buffer)
+
+    @property
+    def frame_id(self) -> int:
+        """Monotonically increasing frame counter (one per captured frame)."""
+        with self._lock:
+            return self._frame_id
+
     def flush_buffer(self, num_frames: int = 15):
         """
         Flush camera buffer by waiting for fresh frames.

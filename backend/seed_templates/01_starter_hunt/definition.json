@@ -1,0 +1,232 @@
+{
+  "name": "RedGreen Starter Hunt",
+  "description": "Soft-reset starter shiny hunt in Pokemon FireRed/LeafGreen. Boot \u2192 navigate Oak's lab \u2192 check summary \u2192 reset.",
+  "game": "Pokemon RedGreen",
+  "pokemon_name": "Starters",
+  "definition": {
+    "version": 1,
+    "detection": {
+      "method": "yellow_star_pixels",
+      "zone": {
+        "upper_x": 264,
+        "upper_y": 109,
+        "lower_x": 312,
+        "lower_y": 151
+      },
+      "threshold": 20,
+      "color_bounds": {
+        "lower_hsv": [20, 100, 150],
+        "upper_hsv": [35, 255, 255]
+      }
+    },
+    "gender_detection": {
+      "enabled": true,
+      "zone": {}
+    },
+    "nature_detection": {
+      "enabled": true,
+      "zone": {}
+    },
+    "soft_reset": {
+      "hold_duration": 0.5,
+      "wait_after": 3,
+      "max_retries": 3
+    },
+    "steps": [
+      {
+        "name": "BOOT",
+        "display_name": "Boot and Navigate Menus",
+        "type": "navigate",
+        "cooldown": 0.6,
+        "rules": [
+          {
+            "condition": {
+              "type": "template_match",
+              "template": "nickname_screen",
+              "threshold": 0.9
+            },
+            "actions": [
+              { "type": "wait", "button": "A", "duration": 1.5 },
+              { "type": "press_button", "button": "START", "wait": 0.5 },
+              { "type": "press_button", "button": "A", "wait": 0.5 }
+            ],
+            "transition": "OVERWORLD"
+          }
+        ],
+        "default_action": [
+          { "type": "press_button", "button": "A" }
+        ]
+      },
+      {
+        "name": "OVERWORLD",
+        "display_name": "Navigate Oaks Lab",
+        "type": "navigate",
+        "cooldown": 0.6,
+        "rules": [
+          {
+            "condition": {
+              "type": "template_match",
+              "template": "oak_lab",
+              "threshold": 0.9
+            },
+            "actions": [
+              { "type": "press_button", "button": "START", "wait": 0.85 },
+              { "type": "press_button", "button": "A", "wait": 0.85 }
+            ],
+            "transition": "POKEMON_SELECTED"
+          }
+        ],
+        "default_action": []
+      },
+      {
+        "name": "POKEMON_SELECTED",
+        "display_name": "Pokemon All Selected",
+        "type": "navigate",
+        "cooldown": 0.6,
+        "rules": [
+          {
+            "condition": {
+              "type": "template_match",
+              "template": "pokemon_selected",
+              "threshold": 0.95
+            },
+            "actions": [
+              { "type": "press_button", "button": "START", "wait": 0.85 },
+              { "type": "press_button", "button": "A", "wait": 0.85 }
+            ],
+            "transition": "POKEMON_MENU"
+          }
+        ],
+        "default_action": [
+          { "type": "press_button", "button": "A" }
+        ]
+      },
+      {
+        "name": "POKEMON_MENU",
+        "display_name": "Pokemon Menu",
+        "type": "navigate",
+        "cooldown": 0.6,
+        "rules": [
+          {
+            "condition": {
+              "type": "template_match",
+              "template": "pokemon_menu",
+              "threshold": 0.8
+            },
+            "actions": [
+              { "type": "press_button", "button": "A", "wait": 0.85 }
+            ],
+            "transition": "CHOOSE_POKEMON"
+          }
+        ],
+        "default_action": [
+          { "type": "press_button", "button": "A" }
+        ]
+      },
+      {
+        "name": "CHOOSE_POKEMON",
+        "display_name": "Choose Pokemon",
+        "type": "navigate",
+        "cooldown": 0.6,
+        "rules": [
+          {
+            "condition": {
+              "type": "template_match",
+              "template": "choose_pokemon",
+              "threshold": 0.8
+            },
+            "actions": [
+              { "type": "press_button", "button": "A", "wait": 0.85 }
+            ],
+            "transition": "SUMMARY_SCREEN"
+          }
+        ],
+        "default_action": []
+      },
+      {
+        "name": "SUMMARY_SCREEN",
+        "display_name": "Pokemon Summary Screen",
+        "type": "navigate",
+        "cooldown": 0.6,
+        "rules": [
+          {
+            "condition": {
+              "type": "template_match",
+              "template": "summary_screen",
+              "threshold": 0.8
+            },
+            "actions": [],
+            "transition": "SHINY_CHECK"
+          }
+        ],
+        "default_action": [
+          { "type": "press_button", "button": "A" }
+        ]
+      },
+      {
+        "name": "SHINY_CHECK",
+        "display_name": "Shiny Check",
+        "type": "shiny_check",
+        "pre_check_delay": 1.5,
+        "buffer_flush_frames": 20,
+        "collect_gender": true,
+        "collect_nature": true,
+        "on_shiny": "STOP",
+        "on_normal_actions": [
+          { "type": "soft_reset" }
+        ],
+        "on_normal_transition": "BOOT"
+      }
+    ]
+  },
+  "images": [
+    {
+      "key": "title_screen",
+      "label": "Title Screen",
+      "description": "The game's main title/start screen",
+      "threshold": 0.80
+    },
+    {
+      "key": "load_game",
+      "label": "Load Game Menu",
+      "description": "The Continue / load save menu",
+      "threshold": 0.80
+    },
+    {
+      "key": "nickname_screen",
+      "label": "Nickname Screen",
+      "description": "The Give a nickname? prompt",
+      "threshold": 0.80
+    },
+    {
+      "key": "oak_lab",
+      "label": "Oak's Lab",
+      "description": "Professor Oak in his lab",
+      "threshold": 0.80
+    },
+    {
+      "key": "pokemon_menu",
+      "label": "Pokemon Menu",
+      "description": "The Pokemon party menu screen",
+      "threshold": 0.80
+    },
+    {
+      "key": "choose_pokemon",
+      "label": "Choose Pokemon",
+      "description": "Starter selection screen",
+      "threshold": 0.80
+    },
+    {
+      "key": "summary_screen",
+      "label": "Summary Screen",
+      "description": "Pokemon summary showing nature/stats",
+      "threshold": 0.80
+    },
+    {
+      "key": "pokemon_selected",
+      "label": "Pokemon All Selected",
+      "description": "The screen after pokemon have been selected.",
+      "threshold": 0.80
+    }
+  ]
+}
