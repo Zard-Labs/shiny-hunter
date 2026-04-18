@@ -11,6 +11,8 @@ import ESP32Config from './components/ESP32Config'
 import TemplateCapturePanel from './components/TemplateCapturePanel'
 import HuntSelector from './components/HuntSelector'
 import TemplateLibrary from './components/TemplateLibrary'
+import MacroRecordingPanel from './components/MacroRecordingPanel'
+import RecordingReviewTimeline from './components/RecordingReviewTimeline'
 import RecoveryLog from './components/RecoveryLog'
 import useWebSocket from './hooks/useWebSocket.jsx'
 import { getAutomationStatus, getStatistics, getHistory, getGameLanguage } from './services/api'
@@ -37,6 +39,8 @@ function App() {
   const [showCalibration, setShowCalibration] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
   const [showTemplateLibrary, setShowTemplateLibrary] = useState(false)
+  const [showRecordingPanel, setShowRecordingPanel] = useState(false)
+  const [reviewSessionId, setReviewSessionId] = useState(null)
   const [selectedHuntId, setSelectedHuntId] = useState(null) // null = active hunt
   const [gameLanguage, setGameLanguageState] = useState('en')
   const { connected, lastMessage } = useWebSocket()
@@ -164,6 +168,16 @@ function App() {
         </div>
 
         <div className="center-panel">
+          {/* Macro Recording Panel — floats above the live feed when recording */}
+          {showRecordingPanel && (
+            <MacroRecordingPanel
+              onRecordingStopped={(sid) => {
+                setShowRecordingPanel(false)
+                setReviewSessionId(sid)
+              }}
+              onClose={() => setShowRecordingPanel(false)}
+            />
+          )}
           <LiveFeed />
           <StateBanner
             status={automationStatus}
@@ -199,7 +213,39 @@ function App() {
       )}
 
       {showTemplateLibrary && (
-        <TemplateLibrary onClose={() => setShowTemplateLibrary(false)} />
+        <TemplateLibrary
+          onClose={() => setShowTemplateLibrary(false)}
+          onStartRecording={() => {
+            setShowTemplateLibrary(false)
+            setShowRecordingPanel(true)
+          }}
+        />
+      )}
+
+      {/* Recording Review Timeline (full-screen modal) */}
+      {reviewSessionId && (
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          background: 'rgba(0, 0, 0, 0.85)',
+          zIndex: 1000,
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'flex-start',
+          padding: '2rem',
+          overflow: 'auto',
+        }}>
+          <div style={{ width: '100%', maxWidth: '900px' }}>
+            <RecordingReviewTimeline
+              sessionId={reviewSessionId}
+              onTemplateCreated={(templateId) => {
+                setReviewSessionId(null)
+                setShowTemplateLibrary(true)
+              }}
+              onClose={() => setReviewSessionId(null)}
+            />
+          </div>
+        </div>
       )}
     </div>
   )

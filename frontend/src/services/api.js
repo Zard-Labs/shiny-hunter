@@ -289,4 +289,65 @@ export const sendTestNotification = async (overrides = {}) => {
   return response.data
 }
 
+// ── Macro Recording ─────────────────────────────────────────────
+
+export const startMacroRecording = async () => {
+  const response = await api.post('/api/macro-recording/start')
+  return response.data
+}
+
+export const stopMacroRecording = async () => {
+  const response = await api.post('/api/macro-recording/stop')
+  return response.data
+}
+
+export const getMacroRecordingStatus = async () => {
+  const response = await api.get('/api/macro-recording/status')
+  return response.data
+}
+
+export const markRecordingStep = async (label = null) => {
+  const response = await api.post('/api/macro-recording/mark-step', { label })
+  return response.data
+}
+
+export const captureRecordingScreenshot = async () => {
+  const response = await api.post('/api/macro-recording/screenshot')
+  return response.data
+}
+
+export const listRecordingSessions = async () => {
+  const response = await api.get('/api/macro-recording/sessions')
+  return response.data
+}
+
+export const getRecordingSession = async (sessionId) => {
+  const response = await api.get(`/api/macro-recording/sessions/${sessionId}`)
+  return response.data
+}
+
+export const deleteRecordingSession = async (sessionId) => {
+  const response = await api.delete(`/api/macro-recording/sessions/${sessionId}`)
+  return response.data
+}
+
+export const getRecordingFrameUrl = (sessionId, frameNumber) =>
+  `${API_BASE_URL}/api/macro-recording/sessions/${sessionId}/frame/${frameNumber}`
+
+export const getRecordingScreenshotUrl = (sessionId, screenshotIndex) =>
+  `${API_BASE_URL}/api/macro-recording/sessions/${sessionId}/screenshot/${screenshotIndex}`
+
+export const extractRecordingFrame = async (sessionId, frameNumber, name) => {
+  const response = await api.post(`/api/macro-recording/sessions/${sessionId}/extract-frame`, {
+    frame_number: frameNumber,
+    name,
+  })
+  return response.data
+}
+
+export const convertRecordingToTemplate = async (sessionId, payload) => {
+  const response = await api.post(`/api/macro-recording/sessions/${sessionId}/convert`, payload)
+  return response.data
+}
+
 export default api

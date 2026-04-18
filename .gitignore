@@ -24,6 +24,9 @@ bot_history.log
 encounters/
 !encounters/.gitkeep
 
+# Macro recordings (user data — video files + screenshots)
+recordings/
+
 # IDE
 .vscode/
 .idea/

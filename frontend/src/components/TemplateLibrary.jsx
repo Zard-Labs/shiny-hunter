@@ -9,7 +9,7 @@ import {
 } from '../services/api'
 import TemplateStepBuilder from './TemplateStepBuilder'
 
-function TemplateLibrary({ onClose }) {
+function TemplateLibrary({ onClose, onStartRecording }) {
   const [templates, setTemplates] = useState([])
   const [loading, setLoading] = useState(true)
   const [editingId, setEditingId] = useState(null) // null = list view, 'new' or UUID = editor
@@ -164,6 +164,19 @@ function TemplateLibrary({ onClose }) {
                 fontWeight: 'bold',
               }}
             >+ New Template</button>
+            <button
+              onClick={() => { onStartRecording?.(); }}
+              style={{
+                padding: '0.4rem 0.8rem',
+                background: 'linear-gradient(135deg, #ff4444, #cc0000)',
+                border: 'none',
+                color: '#fff',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                fontSize: '0.85rem',
+                fontWeight: 'bold',
+              }}
+            >🎬 Record</button>
             <button
               onClick={() => setShowImport(!showImport)}
               style={{

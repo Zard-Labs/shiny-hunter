@@ -8,6 +8,7 @@ from typing import Optional
 from app.config import settings, get_user_data_path, is_packaged
 from app.schemas import ButtonCommand
 from app.services.esp32_manager import esp32_manager
+from app.services.macro_recorder import macro_recorder
 from app.utils.logger import logger
 
 
@@ -48,10 +49,19 @@ async def send_button_command(command: ButtonCommand):
         logger.error(f"Button press error ({command.button}): {e}")
         raise HTTPException(status_code=500, detail=str(e))
     
+    # Macro recording hook: log the button press + auto-capture screenshot
+    recording_event = None
+    if macro_recorder.is_recording:
+        try:
+            recording_event = await macro_recorder.log_button_press(command.button)
+        except Exception as e:
+            logger.warning(f"Macro recording hook error: {e}")
+
     return {
         "status": "success",
         "button": command.button,
-        "message": f"Button {command.button} sent"
+        "message": f"Button {command.button} sent",
+        "recording_event": recording_event is not None,
     }
 
 

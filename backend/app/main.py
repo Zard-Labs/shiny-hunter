@@ -8,7 +8,7 @@ import asyncio
 
 from app.config import settings, get_frontend_dist_path, is_packaged, get_user_data_path
 from app.database import init_db, get_db
-from app.routes import automation, automation_templates, control, statistics, websocket, camera, templates, calibration, notifications
+from app.routes import automation, automation_templates, control, statistics, websocket, camera, templates, calibration, notifications, macro_recording
 from app.services.esp32_manager import esp32_manager
 from app.services.video_capture import video_capture
 from app.services.opencv_detector import opencv_detector
@@ -53,6 +53,7 @@ app.include_router(camera.router)
 app.include_router(templates.router)
 app.include_router(calibration.router)
 app.include_router(notifications.router)
+app.include_router(macro_recording.router)
 
 # Background task for running automation
 automation_task = None
