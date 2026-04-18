@@ -105,7 +105,8 @@ async def get_current_statistics(
         if last_enc:
             last_encounter = {
                 "gender": last_enc.gender or "Unknown",
-                "nature": last_enc.nature or "Unknown"
+                "nature": last_enc.nature or "Unknown",
+                "is_shiny": last_enc.is_shiny,
             }
         
         return StatisticsResponse(

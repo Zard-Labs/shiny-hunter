@@ -75,6 +75,12 @@ function StatisticsPanel({ statistics }) {
           <div className="stat-label">Last Encounter</div>
           <div style={{ marginTop: '0.5rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+              <span className="neon-text magenta">Shiny:</span>
+              <span style={{ color: statistics.last_encounter.is_shiny ? '#FFD700' : 'inherit' }}>
+                {statistics.last_encounter.is_shiny ? '✨ Yes' : 'No'}
+              </span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
               <span className="neon-text magenta">Gender:</span>
               <span>{statistics.last_encounter.gender || 'Unknown'}</span>
             </div>

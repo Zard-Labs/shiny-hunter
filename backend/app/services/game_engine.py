@@ -735,13 +735,7 @@ class DataDrivenGameEngine:
         threshold = settings.yellow_star_threshold
         logger.info(f"Shiny check: {yellow_pixels} yellow pixels (threshold: {threshold})")
 
-        if is_shiny:
-            return await self._handle_shiny_found(
-                fresh_frame, screenshot_path, screenshot_url,
-                yellow_pixels, threshold, db
-            )
-
-        # ── 5. Not shiny — collect stats ────────────────────────
+        # ── 5. Collect gender/nature stats (runs for BOTH shiny and non-shiny)
         collect_gender = step.get("collect_gender", True)
         collect_nature = step.get("collect_nature", True)
 
@@ -763,6 +757,13 @@ class DataDrivenGameEngine:
         self.natures_seen[nature] = self.natures_seen.get(nature, 0) + 1
 
         logger.info(f"Encounter {self.encounter_count} -> Gender: {gender} | Nature: {nature}")
+
+        if is_shiny:
+            return await self._handle_shiny_found(
+                fresh_frame, screenshot_path, screenshot_url,
+                yellow_pixels, threshold, db,
+                gender=gender, nature=nature,
+            )
 
         # Save to database
         encounter = Encounter(
@@ -1052,7 +1053,9 @@ class DataDrivenGameEngine:
                                    screenshot_url: str,
                                    yellow_pixels: int, threshold: float,
                                    db: Session,
-                                   video_clip_url: str = None) -> bool:
+                                   video_clip_url: str = None,
+                                   gender: str = "Unknown",
+                                   nature: str = "Unknown") -> bool:
         """Handle a confirmed shiny detection."""
         logger.info(f"\n*** SHINY FOUND AFTER {self.encounter_count} ENCOUNTERS! ***")
 
@@ -1060,6 +1063,8 @@ class DataDrivenGameEngine:
             encounter_number=self.encounter_count,
             pokemon_name=self.pokemon_name,
             is_shiny=True,
+            gender=gender,
+            nature=nature,
             session_id=self.session_id,
             hunt_id=self.hunt_id,
             screenshot_path=screenshot_url,
@@ -1087,6 +1092,8 @@ class DataDrivenGameEngine:
 
         await self.send_ws_update("shiny_found", {
             "encounter_number": self.encounter_count,
+            "gender": gender,
+            "nature": nature,
             "screenshot_url": screenshot_url,
             "video_clip_url": video_clip_url,
             "timestamp": datetime.utcnow().isoformat(),
