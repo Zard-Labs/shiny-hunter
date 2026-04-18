@@ -118,7 +118,10 @@ function App() {
   return (
     <div className="app">
       <header className="app-header">
-        <h1>Shiny Hunter Dashboard</h1>
+        <div className="header-title-group">
+          <h1>Shiny Hunter Dashboard</h1>
+          <span className="app-version">v{__APP_VERSION__}</span>
+        </div>
         <div className="header-actions">
           <button
             className="settings-btn"
