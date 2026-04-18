@@ -20,6 +20,9 @@
 
 ShinyStarter automates shiny hunting across multiple Pokémon games by combining computer vision with hardware controller emulation. A data-driven template engine lets you define any hunt strategy — starter resets, wild encounters, static encounters — without writing code.
 
+<img width="1606" height="1068" alt="image" src="https://github.com/user-attachments/assets/51e9bfb3-18d4-423f-93f8-a7e9dfce38bb" />
+
+
 ### Key Features
 
 - 🧩 **Template Engine** — JSON-defined state machines drive all automation; create, edit, clone, and share hunt strategies
