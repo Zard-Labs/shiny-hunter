@@ -267,6 +267,23 @@ class DataDrivenGameEngine:
         self._sparkle_monitor: Optional[SparkleMonitor] = None
         self._sparkle_monitor_task: Optional[asyncio.Task] = None
 
+        # ── Watchdog state ──────────────────────────────────────
+        self.step_entered_at: float = 0.0          # time.time() when current step started
+        self.recovery_count: int = 0               # Total recoveries this session
+        self.consecutive_recovery_count: int = 0   # Consecutive recoveries without a successful encounter
+
+        # Recovery config (loaded from template)
+        self._global_recovery: Dict[str, Any] = {
+            "default_timeout": 60,
+            "default_strategy": "soft_reset",
+            "max_consecutive_recoveries": 10,
+            "stop_on_max_recoveries": True,
+        }
+
+        # ── Target criteria (loaded from template) ──────────────
+        self._target_criteria: Dict[str, Any] = {}
+        self.skipped_shinies: int = 0
+
         # ── Stats tracking (in-memory, current session) ────────
         self.last_nature = "Waiting..."
         self.last_gender = "Waiting..."
@@ -325,6 +342,32 @@ class DataDrivenGameEngine:
             "wait_after": sr.get("wait_after", 3.0),
             "max_retries": sr.get("max_retries", 3),
         }
+
+        # Global recovery config (watchdog)
+        gr = definition.get("global_recovery", {})
+        self._global_recovery = {
+            "default_timeout": gr.get("default_timeout", 60),
+            "default_strategy": gr.get("default_strategy", "soft_reset"),
+            "max_consecutive_recoveries": gr.get("max_consecutive_recoveries", 10),
+            "stop_on_max_recoveries": gr.get("stop_on_max_recoveries", True),
+        }
+
+        # Target criteria for nature/gender filtering
+        tc = definition.get("target_criteria", {})
+        self._target_criteria = {
+            "enabled": tc.get("enabled", False),
+            "desired_natures": tc.get("desired_natures", []),
+            "desired_gender": tc.get("desired_gender", None),  # "Male", "Female", or None (any)
+            "on_mismatch": tc.get("on_mismatch", "keep_hunting"),  # "keep_hunting" or "always_stop"
+            "always_stop_on_shiny": tc.get("always_stop_on_shiny", False),
+            "max_shiny_skips": tc.get("max_shiny_skips", 0),  # 0 = unlimited
+        }
+        if self._target_criteria["enabled"]:
+            logger.info(
+                f"Target criteria active — natures: {self._target_criteria['desired_natures']}, "
+                f"gender: {self._target_criteria['desired_gender'] or 'any'}, "
+                f"on_mismatch: {self._target_criteria['on_mismatch']}"
+            )
 
         # Build key→filename map from DB rows and load images
         image_map: Dict[str, str] = {}
@@ -453,6 +496,11 @@ class DataDrivenGameEngine:
         else:
             self.state = "IDLE"
 
+        # Initialize watchdog state
+        self.step_entered_at = time.time()
+        self.recovery_count = 0
+        self.consecutive_recovery_count = 0
+
         # ── Start continuous sparkle monitor if template opts in ──
         self._start_sparkle_monitor_if_enabled()
 
@@ -489,6 +537,11 @@ class DataDrivenGameEngine:
         self.natures_seen = {}
         self._sparkle_monitor = None
         self._sparkle_monitor_task = None
+        self.skipped_shinies = 0
+        self._target_criteria = {}
+        self.step_entered_at = 0.0
+        self.recovery_count = 0
+        self.consecutive_recovery_count = 0
 
     def _screenshot_dir(self) -> Path:
         """Return the per-hunt screenshot directory, creating it if needed.
@@ -553,6 +606,14 @@ class DataDrivenGameEngine:
             "genders_seen": self.genders_seen,
             "natures_seen": self.natures_seen,
             "continuous_monitor_active": self._sparkle_monitor is not None and self._sparkle_monitor._running,
+            # Watchdog info
+            "step_entered_at": self.step_entered_at,
+            "time_in_step": round(time.time() - self.step_entered_at, 1) if self.step_entered_at > 0 and self.is_running else 0,
+            "recovery_count": self.recovery_count,
+            "consecutive_recovery_count": self.consecutive_recovery_count,
+            # Target criteria info
+            "skipped_shinies": self.skipped_shinies,
+            "target_criteria": self._target_criteria,
             **step_info,
         }
 
@@ -580,6 +641,19 @@ class DataDrivenGameEngine:
 
         frame, gray = result
         curr_time = time.time()
+
+        # ── Check for stuck state (watchdog) ───────────────────
+        if self.step_entered_at > 0 and self.state not in ("IDLE", "STOPPED"):
+            step_wd = self._step_index.get(self.state)
+            if step_wd:
+                per_step_timeout = step_wd.get("timeout", self._global_recovery["default_timeout"])
+                if per_step_timeout > 0:  # 0 = disabled
+                    time_in_step = curr_time - self.step_entered_at
+                    if time_in_step > per_step_timeout:
+                        recovery_result = await self._execute_recovery(step_wd, time_in_step, per_step_timeout, db)
+                        if recovery_result == "stopped":
+                            return False
+                        return False  # Recovery performed, skip normal step execution this cycle
 
         step = self._step_index.get(self.state)
         if step is None:
@@ -760,11 +834,23 @@ class DataDrivenGameEngine:
         logger.info(f"Encounter {self.encounter_count} -> Gender: {gender} | Nature: {nature}")
 
         if is_shiny:
-            return await self._handle_shiny_found(
-                fresh_frame, screenshot_path, screenshot_url,
-                yellow_pixels, threshold, db,
-                gender=gender, nature=nature,
-            )
+            # ── Check target criteria before committing ──────────
+            criteria_match, skip_reason = self._check_target_criteria(nature, gender)
+
+            if criteria_match or self._target_criteria.get("always_stop_on_shiny", False):
+                return await self._handle_shiny_found(
+                    fresh_frame, screenshot_path, screenshot_url,
+                    yellow_pixels, threshold, db,
+                    gender=gender, nature=nature,
+                )
+            else:
+                # Shiny found but criteria don't match
+                return await self._handle_shiny_skipped(
+                    fresh_frame, screenshot_path, screenshot_url,
+                    yellow_pixels, threshold, db,
+                    gender=gender, nature=nature,
+                    skip_reason=skip_reason, step=step,
+                )
 
         # Save to database
         encounter = Encounter(
@@ -801,6 +887,9 @@ class DataDrivenGameEngine:
             "is_shiny": False,
             "screenshot_url": screenshot_url,
         })
+
+        # Reset consecutive recovery counter on successful encounter cycle
+        self.consecutive_recovery_count = 0
 
         # ── 6. Execute on_normal_actions and transition ─────────
         on_normal = step.get("on_normal_actions", [])
@@ -1037,6 +1126,9 @@ class DataDrivenGameEngine:
             "video_clip_url": video_clip_url,
         })
 
+        # Reset consecutive recovery counter on successful encounter cycle
+        self.consecutive_recovery_count = 0
+
         on_normal = step.get("on_normal_actions", [])
         await self._execute_actions(on_normal)
 
@@ -1112,6 +1204,235 @@ class DataDrivenGameEngine:
 
         self.stop()
         return True
+
+    # ================================================================
+    #  Shiny skipped handler (target criteria mismatch)
+    # ================================================================
+
+    async def _handle_shiny_skipped(self, frame, screenshot_path: Path,
+                                     screenshot_url: str,
+                                     yellow_pixels: int, threshold: float,
+                                     db: Session,
+                                     gender: str = "Unknown",
+                                     nature: str = "Unknown",
+                                     skip_reason: str = "",
+                                     step: Dict = None) -> bool:
+        """Handle a shiny that doesn't match target criteria."""
+        self.skipped_shinies += 1
+        on_mismatch = self._target_criteria.get("on_mismatch", "keep_hunting")
+        max_skips = self._target_criteria.get("max_shiny_skips", 0)
+
+        logger.info(
+            f"\n*** SHINY FOUND but SKIPPED ({skip_reason}) ***\n"
+            f"  Encounter: {self.encounter_count} | "
+            f"Skipped shinies: {self.skipped_shinies}"
+        )
+
+        # Save encounter with skipped_reason
+        encounter = Encounter(
+            encounter_number=self.encounter_count,
+            pokemon_name=self.pokemon_name,
+            is_shiny=True,
+            gender=gender,
+            nature=nature,
+            session_id=self.session_id,
+            hunt_id=self.hunt_id,
+            screenshot_path=screenshot_url,
+            detection_confidence=yellow_pixels / threshold if threshold else 0,
+            state_at_capture=self.state,
+            skipped_reason=skip_reason,
+        )
+        db.add(encounter)
+
+        session = db.query(DBSession).filter(DBSession.id == self.session_id).first()
+        if session:
+            session.total_encounters = self.encounter_count
+
+        hunt = db.query(Hunt).filter(Hunt.id == self.hunt_id).first()
+        if hunt:
+            hunt_count = db.query(sql_func.count(Encounter.id)).filter(
+                Encounter.hunt_id == self.hunt_id
+            ).scalar()
+            hunt.total_encounters = hunt_count
+
+        db.commit()
+
+        # Send WebSocket notification
+        await self.send_ws_update("shiny_skipped", {
+            "encounter_number": self.encounter_count,
+            "gender": gender,
+            "nature": nature,
+            "skip_reason": skip_reason,
+            "skipped_shinies_total": self.skipped_shinies,
+            "screenshot_url": screenshot_url,
+            "on_mismatch": on_mismatch,
+        })
+
+        # Send push notification even for skipped shinies
+        try:
+            await notification_service.send_shiny_notification(
+                pokemon_name=self.pokemon_name,
+                encounter_count=self.encounter_count,
+                screenshot_path=screenshot_path,
+                extra_text=f"⚠️ SKIPPED: {skip_reason}",
+            )
+        except Exception as exc:
+            logger.warning(f"[Notifications] Failed to send skip notification: {exc}")
+
+        # Check max_shiny_skips limit
+        if max_skips > 0 and self.skipped_shinies >= max_skips:
+            logger.info(f"Max shiny skips ({max_skips}) reached — stopping")
+            self.stop()
+            return True
+
+        # Check on_mismatch behavior
+        if on_mismatch == "always_stop":
+            self.stop()
+            return True
+
+        # keep_hunting — soft reset and continue
+        if step:
+            on_normal = step.get("on_normal_actions", [])
+            await self._execute_actions(on_normal)
+            transition = step.get("on_normal_transition")
+            if transition:
+                await self._transition_to(transition)
+
+        return False
+
+    # ================================================================
+    #  Target criteria checking
+    # ================================================================
+
+    def _check_target_criteria(self, nature: str, gender: str) -> tuple:
+        """Check if a shiny encounter matches target criteria.
+
+        Returns:
+            (matches, reason) — matches is True if criteria satisfied or disabled,
+            reason is a human-readable mismatch description if matches is False.
+        """
+        tc = self._target_criteria
+        if not tc.get("enabled", False):
+            return True, ""
+
+        reasons = []
+
+        # Check nature
+        desired_natures = tc.get("desired_natures", [])
+        if desired_natures and nature not in desired_natures:
+            reasons.append(f"Nature mismatch: {nature} (wanted: {', '.join(desired_natures)})")
+
+        # Check gender
+        desired_gender = tc.get("desired_gender")
+        if desired_gender and gender != desired_gender:
+            reasons.append(f"Gender mismatch: {gender} (wanted: {desired_gender})")
+
+        if reasons:
+            return False, "; ".join(reasons)
+
+        return True, ""
+
+    # ================================================================
+    #  Watchdog recovery
+    # ================================================================
+
+    async def _execute_recovery(self, step: Dict, time_in_step: float,
+                                 timeout_value: float, db: Session) -> str:
+        """Execute recovery for a stuck step. Returns 'recovered' or 'stopped'."""
+        recovery_config = step.get("recovery", {})
+        strategy = recovery_config.get("strategy", self._global_recovery["default_strategy"])
+        max_recoveries = self._global_recovery["max_consecutive_recoveries"]
+
+        self.recovery_count += 1
+        self.consecutive_recovery_count += 1
+
+        logger.warning(
+            f"[Watchdog] Step '{self.state}' timed out after {time_in_step:.1f}s "
+            f"(timeout: {timeout_value}s) — strategy: {strategy} "
+            f"(recovery #{self.consecutive_recovery_count})"
+        )
+
+        # Check if max consecutive recoveries exceeded
+        if self._global_recovery["stop_on_max_recoveries"] and \
+           self.consecutive_recovery_count >= max_recoveries:
+            logger.error(
+                f"[Watchdog] Max consecutive recoveries ({max_recoveries}) reached — stopping automation"
+            )
+            # Log to DB
+            self._log_recovery_event(db, step, time_in_step, timeout_value, "stop_max_reached")
+            await self.send_ws_update("automation_error", {
+                "reason": "max_recoveries_reached",
+                "recovery_count": self.consecutive_recovery_count,
+                "last_step": self.state,
+            })
+            self.stop()
+            return "stopped"
+
+        # Log recovery event to DB
+        self._log_recovery_event(db, step, time_in_step, timeout_value, strategy)
+
+        # Execute recovery strategy
+        if strategy == "soft_reset":
+            logger.info("[Watchdog] Performing soft reset recovery...")
+            hold = self._soft_reset_config["hold_duration"]
+            wait_after = self._soft_reset_config["wait_after"]
+            await esp32_manager.send_combo('RESET', hold)
+            await asyncio.sleep(wait_after)
+            # Go back to first step
+            if self._step_order:
+                await self._transition_to(self._step_order[0])
+
+        elif strategy == "retry_step":
+            logger.info(f"[Watchdog] Retrying step '{self.state}'...")
+            self.step_entered_at = time.time()  # Reset timer
+            self.wait_start_time = 0.0
+
+        elif strategy == "goto_step":
+            target = recovery_config.get("goto_step", self._step_order[0] if self._step_order else "IDLE")
+            logger.info(f"[Watchdog] Jumping to step '{target}'...")
+            await self._transition_to(target)
+
+        else:  # "stop" or unknown
+            logger.info("[Watchdog] Stopping automation per recovery strategy...")
+            self.stop()
+            return "stopped"
+
+        # Send WebSocket notification
+        await self.send_ws_update("recovery_triggered", {
+            "step_name": step.get("name", self.state),
+            "time_in_step": round(time_in_step, 1),
+            "timeout_value": timeout_value,
+            "strategy": strategy,
+            "recovery_count": self.recovery_count,
+            "consecutive": self.consecutive_recovery_count,
+        })
+
+        return "recovered"
+
+    def _log_recovery_event(self, db: Session, step: Dict, time_in_step: float,
+                             timeout_value: float, strategy: str):
+        """Log a recovery event to the database."""
+        import json as _json
+        from app.models import RecoveryEvent
+        event = RecoveryEvent(
+            hunt_id=self.hunt_id,
+            session_id=self.session_id,
+            step_name=step.get("name", self.state),
+            time_in_step=time_in_step,
+            timeout_value=timeout_value,
+            strategy=strategy,
+            recovery_count=self.recovery_count,
+            details=_json.dumps({
+                "step_display_name": step.get("display_name"),
+                "consecutive_count": self.consecutive_recovery_count,
+            }),
+        )
+        db.add(event)
+        try:
+            db.commit()
+        except Exception as e:
+            logger.error(f"[Watchdog] Failed to log recovery event: {e}")
+            db.rollback()
 
     # ================================================================
     #  Action execution
@@ -1211,6 +1532,7 @@ class DataDrivenGameEngine:
         old_state = self.state
         self.state = step_name
         self.wait_start_time = 0.0  # Reset wait timer for timed_wait steps
+        self.step_entered_at = time.time()  # Reset watchdog timer for new step
 
         step_info = self._get_step_info()
         await self.send_ws_update("state_update", {

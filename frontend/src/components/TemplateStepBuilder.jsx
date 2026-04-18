@@ -8,7 +8,9 @@ import {
   createAutomationTemplate,
   updateAutomationTemplate,
   getAutomationTemplateImages,
+  getGameLanguage,
 } from '../services/api'
+import { displayNature } from '../utils/natureUtils'
 
 const STEP_TYPES = [
   { value: 'navigate', label: 'Navigate (Template Match + Buttons)' },
@@ -275,6 +277,8 @@ function TemplateStepBuilder({ templateId, onClose, onSaved }) {
           {[
             { key: 'steps', label: `📋 Steps (${steps.length})` },
             { key: 'reset', label: '🔄 Soft Reset' },
+            { key: 'watchdog', label: '⏱ Watchdog' },
+            { key: 'target', label: '🎯 Target Criteria' },
             { key: 'images', label: `🖼️ Images (${uniqueTemplateKeys.length})` },
           ].map((tab) => (
             <button
@@ -375,6 +379,26 @@ function TemplateStepBuilder({ templateId, onClose, onSaved }) {
           {activeTab === 'reset' && (
             <div style={panelBg}>
               <SoftResetPanel
+                definition={definition}
+                onChange={(newDef) => updateDefinition(newDef)}
+              />
+            </div>
+          )}
+
+          {/* Watchdog Tab */}
+          {activeTab === 'watchdog' && (
+            <div style={panelBg}>
+              <WatchdogPanel
+                definition={definition}
+                onChange={(newDef) => updateDefinition(newDef)}
+              />
+            </div>
+          )}
+
+          {/* Target Criteria Tab */}
+          {activeTab === 'target' && (
+            <div style={panelBg}>
+              <TargetCriteriaPanel
                 definition={definition}
                 onChange={(newDef) => updateDefinition(newDef)}
               />
@@ -706,6 +730,493 @@ const miniBtn = {
   cursor: 'pointer',
   fontSize: '0.6rem',
   lineHeight: 1,
+}
+
+
+// ── Watchdog Panel ─────────────────────────────────────────────
+
+const RECOVERY_STRATEGIES = [
+  { value: 'soft_reset', label: 'Soft Reset (go to first step)' },
+  { value: 'retry_step', label: 'Retry Step (reset timer, stay here)' },
+  { value: 'goto_step', label: 'Go To Step (jump to named step)' },
+  { value: 'stop', label: 'Stop Automation' },
+]
+
+function WatchdogPanel({ definition, onChange }) {
+  const gr = definition.global_recovery || {}
+  const defaultTimeout = gr.default_timeout ?? 60
+  const defaultStrategy = gr.default_strategy || 'soft_reset'
+  const maxConsecutive = gr.max_consecutive_recoveries ?? 10
+  const stopOnMax = gr.stop_on_max_recoveries !== false
+
+  const steps = definition.steps || []
+
+  const updateGlobal = (patch) => {
+    onChange({
+      ...definition,
+      global_recovery: { ...gr, ...patch },
+    })
+  }
+
+  const updateStepField = (stepIndex, field, value) => {
+    const newSteps = steps.map((s, i) => {
+      if (i !== stepIndex) return s
+      if (field === 'timeout') {
+        return { ...s, timeout: value }
+      }
+      // recovery sub-object fields
+      const recovery = s.recovery || {}
+      return { ...s, recovery: { ...recovery, [field]: value } }
+    })
+    onChange({ ...definition, steps: newSteps })
+  }
+
+  const inputStyle = {
+    padding: '0.4rem 0.6rem',
+    background: 'var(--bg-tertiary, #252540)',
+    border: '1px solid rgba(255,255,255,0.1)',
+    color: 'var(--text-primary, #e0e0e0)',
+    borderRadius: '3px',
+    fontSize: '0.85rem',
+    fontFamily: "'Courier New', monospace",
+  }
+  const labelStyle = {
+    fontSize: '0.7rem',
+    color: 'var(--accent-cyan, #00ffff)',
+    textTransform: 'uppercase',
+    letterSpacing: '0.05em',
+    marginBottom: '0.25rem',
+    display: 'block',
+  }
+
+  return (
+    <div>
+      <h3 style={{ color: 'var(--accent-cyan)', fontSize: '0.95rem', marginTop: 0 }}>
+        ⏱ Watchdog & Recovery
+      </h3>
+      <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: 0 }}>
+        Detect when the automation gets stuck in a step and automatically recover.
+        The watchdog monitors how long each step has been running; if a step exceeds its
+        timeout, the configured recovery strategy fires automatically.
+      </p>
+
+      {/* ── Global Recovery Defaults ── */}
+      <div style={{
+        padding: '0.75rem',
+        background: 'rgba(0, 0, 0, 0.2)',
+        borderRadius: '4px',
+        border: '1px solid rgba(255,255,255,0.05)',
+        marginBottom: '1rem',
+      }}>
+        <div style={{ ...labelStyle, fontSize: '0.8rem', color: 'var(--accent-magenta)', marginBottom: '0.5rem' }}>
+          GLOBAL DEFAULTS
+        </div>
+
+        <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '0.5rem' }}>
+          <div>
+            <label style={labelStyle}>Default Timeout (seconds)</label>
+            <input
+              type="number"
+              min="0"
+              step="5"
+              value={defaultTimeout}
+              onChange={(e) => updateGlobal({ default_timeout: parseInt(e.target.value, 10) || 0 })}
+              style={{ ...inputStyle, width: '100px' }}
+            />
+            <div style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', marginTop: '0.15rem' }}>
+              0 = disabled (no watchdog)
+            </div>
+          </div>
+
+          <div>
+            <label style={labelStyle}>Default Strategy</label>
+            <select
+              value={defaultStrategy}
+              onChange={(e) => updateGlobal({ default_strategy: e.target.value })}
+              style={{ ...inputStyle, width: '250px' }}
+            >
+              {RECOVERY_STRATEGIES.map((s) => (
+                <option key={s.value} value={s.value}>{s.label}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'flex-end' }}>
+          <div>
+            <label style={labelStyle}>Max Consecutive Recoveries</label>
+            <input
+              type="number"
+              min="0"
+              value={maxConsecutive}
+              onChange={(e) => updateGlobal({ max_consecutive_recoveries: parseInt(e.target.value, 10) || 0 })}
+              style={{ ...inputStyle, width: '80px' }}
+            />
+          </div>
+
+          <label style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            cursor: 'pointer',
+            paddingBottom: '0.4rem',
+          }}>
+            <input
+              type="checkbox"
+              checked={stopOnMax}
+              onChange={(e) => updateGlobal({ stop_on_max_recoveries: e.target.checked })}
+              style={{ accentColor: 'var(--accent-cyan)' }}
+            />
+            <span style={{ color: 'var(--text-primary)', fontSize: '0.8rem' }}>
+              Stop automation when max reached
+            </span>
+          </label>
+        </div>
+      </div>
+
+      {/* ── Per-Step Timeout & Recovery ── */}
+      <div style={{
+        padding: '0.75rem',
+        background: 'rgba(0, 0, 0, 0.2)',
+        borderRadius: '4px',
+        border: '1px solid rgba(255,255,255,0.05)',
+      }}>
+        <div style={{ ...labelStyle, fontSize: '0.8rem', color: 'var(--accent-magenta)', marginBottom: '0.5rem' }}>
+          PER-STEP TIMEOUTS
+        </div>
+        <p style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', margin: '0 0 0.5rem 0' }}>
+          Override the global default timeout and strategy for individual steps.
+          Leave timeout blank to use the global default ({defaultTimeout}s).
+        </p>
+
+        {steps.length === 0 ? (
+          <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', fontStyle: 'italic', padding: '1rem', textAlign: 'center' }}>
+            No steps defined. Add steps in the Steps tab first.
+          </div>
+        ) : (
+          <table style={{
+            width: '100%',
+            borderCollapse: 'collapse',
+            fontSize: '0.8rem',
+          }}>
+            <thead>
+              <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+                <th style={{ textAlign: 'left', padding: '0.4rem 0.5rem', color: 'var(--text-secondary)', fontWeight: 'normal', fontSize: '0.7rem', textTransform: 'uppercase' }}>Step</th>
+                <th style={{ textAlign: 'left', padding: '0.4rem 0.5rem', color: 'var(--text-secondary)', fontWeight: 'normal', fontSize: '0.7rem', textTransform: 'uppercase' }}>Type</th>
+                <th style={{ textAlign: 'center', padding: '0.4rem 0.5rem', color: 'var(--text-secondary)', fontWeight: 'normal', fontSize: '0.7rem', textTransform: 'uppercase', width: '90px' }}>Timeout (s)</th>
+                <th style={{ textAlign: 'left', padding: '0.4rem 0.5rem', color: 'var(--text-secondary)', fontWeight: 'normal', fontSize: '0.7rem', textTransform: 'uppercase' }}>Recovery Strategy</th>
+              </tr>
+            </thead>
+            <tbody>
+              {steps.map((step, i) => {
+                const stepTimeout = step.timeout
+                const stepStrategy = step.recovery?.strategy || ''
+                const hasOverride = stepTimeout !== undefined || stepStrategy
+                return (
+                  <tr
+                    key={i}
+                    style={{
+                      borderBottom: '1px solid rgba(255,255,255,0.04)',
+                      background: hasOverride ? 'rgba(0, 255, 255, 0.03)' : 'transparent',
+                    }}
+                  >
+                    <td style={{ padding: '0.35rem 0.5rem' }}>
+                      <div style={{ fontWeight: 'bold', color: 'var(--text-primary)' }}>
+                        {step.display_name || step.name}
+                      </div>
+                      <div style={{ fontSize: '0.65rem', color: 'var(--text-secondary)' }}>
+                        {step.name}
+                      </div>
+                    </td>
+                    <td style={{ padding: '0.35rem 0.5rem', color: 'var(--text-secondary)' }}>
+                      {step.type}
+                    </td>
+                    <td style={{ padding: '0.35rem 0.5rem', textAlign: 'center' }}>
+                      <input
+                        type="number"
+                        min="0"
+                        step="5"
+                        value={stepTimeout ?? ''}
+                        placeholder={String(defaultTimeout)}
+                        onChange={(e) => {
+                          const val = e.target.value === '' ? undefined : parseInt(e.target.value, 10)
+                          updateStepField(i, 'timeout', val)
+                        }}
+                        style={{
+                          ...inputStyle,
+                          width: '70px',
+                          textAlign: 'center',
+                          opacity: stepTimeout !== undefined ? 1 : 0.5,
+                        }}
+                      />
+                    </td>
+                    <td style={{ padding: '0.35rem 0.5rem' }}>
+                      <select
+                        value={stepStrategy}
+                        onChange={(e) => updateStepField(i, 'strategy', e.target.value || undefined)}
+                        style={{
+                          ...inputStyle,
+                          width: '100%',
+                          opacity: stepStrategy ? 1 : 0.5,
+                        }}
+                      >
+                        <option value="">— use global —</option>
+                        {RECOVERY_STRATEGIES.map((s) => (
+                          <option key={s.value} value={s.value}>{s.label}</option>
+                        ))}
+                      </select>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      {/* ── Summary ── */}
+      <div style={{
+        marginTop: '0.75rem',
+        padding: '0.5rem 0.75rem',
+        background: 'rgba(0, 255, 255, 0.05)',
+        border: '1px solid rgba(0, 255, 255, 0.15)',
+        borderRadius: '4px',
+        fontSize: '0.75rem',
+        color: 'var(--text-secondary)',
+      }}>
+        <span style={{ color: 'var(--accent-cyan)', fontWeight: 'bold' }}>📋 Summary: </span>
+        {defaultTimeout > 0 ? (
+          <>
+            Watchdog active — steps time out after{' '}
+            <span style={{ color: 'var(--accent-green)' }}>{defaultTimeout}s</span> by default,{' '}
+            recovery: <span style={{ color: 'var(--accent-green)' }}>{defaultStrategy}</span>,{' '}
+            max consecutive: <span style={{ color: 'var(--accent-yellow)' }}>{maxConsecutive}</span>
+            {stopOnMax ? ' (stops on max)' : ' (continues after max)'}
+          </>
+        ) : (
+          <span style={{ color: 'var(--accent-yellow)' }}>
+            Watchdog disabled — set a default timeout greater than 0 to enable
+          </span>
+        )}
+      </div>
+    </div>
+  )
+}
+
+
+// ── Target Criteria Panel ──────────────────────────────────────
+
+const ALL_NATURES = [
+  'Hardy', 'Lonely', 'Brave', 'Adamant', 'Naughty',
+  'Bold', 'Docile', 'Relaxed', 'Impish', 'Lax',
+  'Timid', 'Hasty', 'Serious', 'Jolly', 'Naive',
+  'Modest', 'Mild', 'Quiet', 'Bashful', 'Rash',
+  'Calm', 'Gentle', 'Sassy', 'Careful', 'Quirky',
+]
+
+function TargetCriteriaPanel({ definition, onChange }) {
+  const [gameLanguage, setGameLanguage] = useState('en')
+  
+  useEffect(() => {
+    getGameLanguage()
+      .then(data => setGameLanguage(data.language || 'en'))
+      .catch(() => {})
+  }, [])
+
+  const tc = definition.target_criteria || {}
+  const enabled = tc.enabled !== undefined ? tc.enabled : false
+  const desiredNatures = tc.desired_natures || []
+  const desiredGender = tc.desired_gender || 'any'
+  const onMismatch = tc.on_mismatch || 'keep_hunting'
+  const maxShinySkips = tc.max_shiny_skips ?? 0
+
+  const update = (patch) => {
+    onChange({
+      ...definition,
+      target_criteria: { ...tc, ...patch },
+    })
+  }
+
+  const toggleNature = (nature) => {
+    const next = desiredNatures.includes(nature)
+      ? desiredNatures.filter((n) => n !== nature)
+      : [...desiredNatures, nature]
+    update({ desired_natures: next })
+  }
+
+  const inputStyle = {
+    padding: '0.4rem 0.6rem',
+    background: 'var(--bg-tertiary, #252540)',
+    border: '1px solid rgba(255,255,255,0.1)',
+    color: 'var(--text-primary, #e0e0e0)',
+    borderRadius: '3px',
+    fontSize: '0.85rem',
+    fontFamily: "'Courier New', monospace",
+  }
+  const labelStyle = {
+    fontSize: '0.7rem',
+    color: 'var(--accent-cyan, #00ffff)',
+    textTransform: 'uppercase',
+    letterSpacing: '0.05em',
+    marginBottom: '0.25rem',
+    display: 'block',
+  }
+
+  return (
+    <div>
+      <h3 style={{ color: 'var(--accent-cyan)', fontSize: '0.95rem', marginTop: 0 }}>
+        🎯 Target Criteria
+      </h3>
+      <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: 0 }}>
+        Define which shinies to keep. When a shiny is found but doesn't match these criteria,
+        the automation can skip it and continue hunting.
+      </p>
+
+      {/* Enable/Disable toggle */}
+      <div style={{ marginBottom: '1rem' }}>
+        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+          <input
+            type="checkbox"
+            checked={enabled}
+            onChange={(e) => update({ enabled: e.target.checked })}
+            style={{ accentColor: 'var(--accent-cyan)' }}
+          />
+          <span style={{ color: enabled ? 'var(--accent-green)' : 'var(--text-secondary)', fontWeight: 'bold', fontSize: '0.85rem' }}>
+            {enabled ? 'Target filtering ENABLED' : 'Target filtering disabled'}
+          </span>
+        </label>
+      </div>
+
+      {enabled && (
+        <>
+          {/* Desired Natures */}
+          <div style={{ marginBottom: '1rem' }}>
+            <label style={labelStyle}>
+              Desired Natures {desiredNatures.length > 0 && `(${desiredNatures.length} selected)`}
+            </label>
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(5, 1fr)',
+              gap: '0.25rem',
+              maxHeight: '200px',
+              overflowY: 'auto',
+              padding: '0.5rem',
+              background: 'rgba(0,0,0,0.2)',
+              borderRadius: '4px',
+              border: '1px solid rgba(255,255,255,0.05)',
+            }}>
+              {ALL_NATURES.map((nature) => {
+                const isSelected = desiredNatures.includes(nature)
+                return (
+                  <label
+                    key={nature}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.3rem',
+                      cursor: 'pointer',
+                      padding: '0.15rem 0.3rem',
+                      borderRadius: '3px',
+                      fontSize: '0.75rem',
+                      background: isSelected ? 'rgba(0, 255, 255, 0.1)' : 'transparent',
+                      color: isSelected ? 'var(--accent-cyan)' : 'var(--text-secondary)',
+                      border: isSelected ? '1px solid rgba(0,255,255,0.3)' : '1px solid transparent',
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      onChange={() => toggleNature(nature)}
+                      style={{ accentColor: 'var(--accent-cyan)', width: '12px', height: '12px' }}
+                    />
+                    {displayNature(nature, gameLanguage)}
+                  </label>
+                )
+              })}
+            </div>
+            {desiredNatures.length === 0 && (
+              <div style={{ fontSize: '0.7rem', color: 'var(--accent-yellow)', marginTop: '0.25rem' }}>
+                ⚠ No natures selected — any nature will be accepted
+              </div>
+            )}
+          </div>
+
+          {/* Gender */}
+          <div style={{ marginBottom: '1rem' }}>
+            <label style={labelStyle}>Desired Gender</label>
+            <select
+              value={desiredGender}
+              onChange={(e) => update({ desired_gender: e.target.value })}
+              style={{ ...inputStyle, width: '200px' }}
+            >
+              <option value="any">Any</option>
+              <option value="male">Male</option>
+              <option value="female">Female</option>
+            </select>
+          </div>
+
+          {/* On Mismatch Behavior */}
+          <div style={{ marginBottom: '1rem' }}>
+            <label style={labelStyle}>On Mismatch Behavior</label>
+            <select
+              value={onMismatch}
+              onChange={(e) => update({ on_mismatch: e.target.value })}
+              style={{ ...inputStyle, width: '250px' }}
+            >
+              <option value="keep_hunting">Keep Hunting (soft reset &amp; continue)</option>
+              <option value="always_stop">Always Stop (pause for manual decision)</option>
+            </select>
+            <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
+              {onMismatch === 'keep_hunting'
+                ? 'Automation will soft-reset and continue hunting when a shiny doesn\'t match criteria.'
+                : 'Automation will stop when a shiny is found, even if it doesn\'t match criteria.'}
+            </div>
+          </div>
+
+          {/* Max Shiny Skips */}
+          <div style={{ marginBottom: '1rem' }}>
+            <label style={labelStyle}>Max Shiny Skips (0 = unlimited)</label>
+            <input
+              type="number"
+              min="0"
+              value={maxShinySkips}
+              onChange={(e) => update({ max_shiny_skips: parseInt(e.target.value, 10) || 0 })}
+              style={{ ...inputStyle, width: '120px' }}
+            />
+            <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
+              {maxShinySkips === 0
+                ? 'Will keep skipping non-matching shinies indefinitely.'
+                : `Will stop after skipping ${maxShinySkips} shiny Pokémon.`}
+            </div>
+          </div>
+
+          {/* Summary */}
+          {desiredNatures.length > 0 && (
+            <div style={{
+              padding: '0.75rem',
+              background: 'rgba(0, 255, 255, 0.05)',
+              border: '1px solid rgba(0, 255, 255, 0.15)',
+              borderRadius: '4px',
+              fontSize: '0.8rem',
+            }}>
+              <div style={{ color: 'var(--accent-cyan)', fontWeight: 'bold', marginBottom: '0.3rem' }}>
+                📋 Target Summary
+              </div>
+              <div style={{ color: 'var(--text-secondary)' }}>
+                Looking for: <span style={{ color: 'var(--accent-green)' }}>{desiredNatures.map(n => displayNature(n, gameLanguage)).join(', ')}</span>
+                {desiredGender !== 'any' && (
+                  <> • Gender: <span style={{ color: 'var(--accent-green)' }}>{desiredGender}</span></>
+                )}
+                {maxShinySkips > 0 && (
+                  <> • Max skips: <span style={{ color: 'var(--accent-yellow)' }}>{maxShinySkips}</span></>
+                )}
+              </div>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  )
 }
 
 export default TemplateStepBuilder

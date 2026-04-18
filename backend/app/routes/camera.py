@@ -41,6 +41,11 @@ class CropModeRequest(BaseModel):
     mode: str  # "4:3" or "16:9"
 
 
+class GameLanguageRequest(BaseModel):
+    """Request to set the game language for nature OCR."""
+    language: str  # "en" or "fr"
+
+
 def _scan_devices_blocking() -> List[dict]:
     """
     Scan for available camera devices (blocking, runs in thread pool).
@@ -310,6 +315,91 @@ async def save_crop_mode_to_config(request: CropModeRequest):
     
     except Exception as e:
         logger.error(f"Error saving crop mode config: {e}")
+        return {
+            "status": "error",
+            "message": str(e)
+        }
+
+
+# ── Game Language endpoints ───────────────────────────────────────────
+
+@router.get("/game-language")
+async def get_game_language():
+    """Get the current game language setting."""
+    return {
+        "language": settings.game_language
+    }
+
+
+@router.post("/game-language")
+async def set_game_language(request: GameLanguageRequest):
+    """
+    Set the game language at runtime (takes effect on the next nature OCR).
+    
+    - "en": English — OCR pattern: "BOLD nature."
+    - "fr": French  — OCR pattern: "de nature TIMIDE."
+    """
+    valid_languages = {"en", "fr"}
+    if request.language not in valid_languages:
+        return {
+            "status": "error",
+            "message": f"Invalid language '{request.language}'. Valid: {valid_languages}"
+        }
+    
+    old_lang = settings.game_language
+    settings.game_language = request.language
+    logger.info(f"Game language changed: {old_lang} -> {request.language}")
+    
+    return {
+        "status": "success",
+        "message": f"Game language set to {request.language}",
+        "language": request.language
+    }
+
+
+@router.post("/game-language/save")
+async def save_game_language_to_config(request: GameLanguageRequest):
+    """Save the game language to config.yaml for persistence across restarts."""
+    import yaml
+    from pathlib import Path
+    
+    valid_languages = {"en", "fr"}
+    if request.language not in valid_languages:
+        return {
+            "status": "error",
+            "message": f"Invalid language '{request.language}'. Valid: {valid_languages}"
+        }
+    
+    if is_packaged():
+        config_path = get_user_data_path() / "config.yaml"
+    else:
+        config_path = Path(__file__).parent.parent.parent / "config.yaml"
+    
+    try:
+        if config_path.exists():
+            with open(config_path, 'r') as f:
+                config_data = yaml.safe_load(f) or {}
+        else:
+            config_data = {}
+        
+        if 'hardware' not in config_data:
+            config_data['hardware'] = {}
+        
+        config_data['hardware']['game_language'] = request.language
+        
+        with open(config_path, 'w') as f:
+            yaml.safe_dump(config_data, f, default_flow_style=False, sort_keys=False)
+        
+        # Also update the runtime setting
+        settings.game_language = request.language
+        
+        return {
+            "status": "success",
+            "message": f"Game language '{request.language}' saved to config.yaml"
+        }
+    
+    except Exception as e:
+        logger.error(f"Error saving game language config: {e}")
         return {
             "status": "error",
             "message": str(e)

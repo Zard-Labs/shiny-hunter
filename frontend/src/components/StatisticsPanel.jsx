@@ -1,4 +1,5 @@
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip, BarChart, Bar, XAxis, YAxis } from 'recharts'
+import { displayNature } from '../utils/natureUtils'
 
 const NATURE_COLORS = [
   '#ff0055', '#ff00aa', '#ff00ff', '#aa00ff', '#5500ff',
@@ -8,7 +9,7 @@ const NATURE_COLORS = [
   '#5555ff', '#55aaff', '#55ffff', '#55ffaa', '#55ff55'
 ]
 
-function StatisticsPanel({ statistics }) {
+function StatisticsPanel({ statistics, automationStatus, gameLanguage = 'en' }) {
   const formatDuration = (seconds) => {
     const hours = Math.floor(seconds / 3600)
     const minutes = Math.floor((seconds % 3600) / 60)
@@ -22,9 +23,9 @@ function StatisticsPanel({ statistics }) {
     return `${probability.toFixed(2)}%`
   }
 
-  // Prepare nature data for chart
+  // Prepare nature data for chart (translate names for display)
   const natureData = Object.entries(statistics.natures || {}).map(([name, count]) => ({
-    name,
+    name: displayNature(name, gameLanguage),
     value: count
   })).sort((a, b) => b.value - a.value).slice(0, 10)
 
@@ -38,6 +39,18 @@ function StatisticsPanel({ statistics }) {
     <div className="panel statistics-panel">
       <h2 className="panel-title">Statistics</h2>
       
+      {automationStatus?.skipped_shinies > 0 && (
+        <div className="stat-box" style={{ borderColor: 'var(--accent-yellow)' }}>
+          <div className="stat-label">⏭ Shinies Skipped</div>
+          <div className="stat-value" style={{ color: '#FFD700' }}>
+            {automationStatus.skipped_shinies}
+          </div>
+          <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', marginTop: '0.5rem' }}>
+            Target: {automationStatus.target_criteria?.desired_natures?.map(n => displayNature(n, gameLanguage)).join(', ') || 'Any nature'}
+          </div>
+        </div>
+      )}
+
       {statistics.hunt_name && (
         <div style={{
           fontSize: '0.8rem',
@@ -86,7 +99,7 @@ function StatisticsPanel({ statistics }) {
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
               <span className="neon-text magenta">Nature:</span>
-              <span>{statistics.last_encounter.nature || 'Unknown'}</span>
+              <span>{displayNature(statistics.last_encounter.nature, gameLanguage) || 'Unknown'}</span>
             </div>
           </div>
         </div>

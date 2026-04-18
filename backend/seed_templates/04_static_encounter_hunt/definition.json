@@ -36,12 +36,31 @@
       "wait_after": 3,
       "max_retries": 3
     },
+    "global_recovery": {
+      "default_timeout": 60,
+      "default_strategy": "soft_reset",
+      "max_consecutive_recoveries": 10,
+      "stop_on_max_recoveries": true
+    },
+    "target_criteria": {
+      "enabled": false,
+      "desired_natures": [],
+      "desired_gender": null,
+      "on_mismatch": "keep_hunting",
+      "always_stop_on_shiny": false,
+      "max_shiny_skips": 0
+    },
     "steps": [
       {
         "name": "BOOT",
         "display_name": "Boot and Navigate Menus",
         "type": "navigate",
         "cooldown": 0.6,
+        "timeout": 45,
+        "recovery": {
+          "strategy": "soft_reset",
+          "notify_on_recovery": true
+        },
         "rules": [
           {
             "condition": {
@@ -62,6 +81,7 @@
         "display_name": "Interacting with Pokemon",
         "type": "navigate",
         "cooldown": 0.5,
+        "timeout": 45,
         "rules": [
           {
             "condition": {
@@ -81,6 +101,7 @@
         "name": "BATTLE_ENTRY",
         "display_name": "Battle Entry - Waiting for Pokemon",
         "type": "timed_wait",
+        "timeout": 0,
         "duration": 2.0,
         "during_wait_action": [],
         "transition": "BATTLE_SPARKLE_CHECK"
@@ -89,6 +110,7 @@
         "name": "BATTLE_SPARKLE_CHECK",
         "display_name": "Checking for Shiny Sparkle",
         "type": "battle_shiny_check",
+        "timeout": 15,
         "pre_check_delay": 0.5,
         "capture_window_seconds": 1.5,
         "ring_buffer_frames": 90,

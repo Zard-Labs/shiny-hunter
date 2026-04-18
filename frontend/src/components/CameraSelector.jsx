@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
-import { getCameraDevices, selectCamera, saveCameraToConfig, getCropMode, setCropMode, saveCropModeToConfig } from '../services/api'
+import { getCameraDevices, selectCamera, saveCameraToConfig, getCropMode, setCropMode, saveCropModeToConfig, getGameLanguage, setGameLanguage, saveGameLanguageToConfig } from '../services/api'
 
-function CameraSelector({ onCameraChange }) {
+function CameraSelector({ onCameraChange, gameLanguage, onLanguageChange }) {
   const [devices, setDevices] = useState([])
   const [loading, setLoading] = useState(false)
   const [selectedIndex, setSelectedIndex] = useState(0)
@@ -9,6 +9,8 @@ function CameraSelector({ onCameraChange }) {
   const [cropMode, setCropModeState] = useState('16:9')
   const [cropLoading, setCropLoading] = useState(false)
   const [cropSaving, setCropSaving] = useState(false)
+  const [langLoading, setLangLoading] = useState(false)
+  const [langSaving, setLangSaving] = useState(false)
 
   useEffect(() => {
     loadDevices()
@@ -55,6 +57,40 @@ function CameraSelector({ onCameraChange }) {
       alert('Failed to save crop mode to config')
     } finally {
       setCropSaving(false)
+    }
+  }
+
+  const handleLanguageChange = async (lang) => {
+    setLangLoading(true)
+    try {
+      const result = await setGameLanguage(lang)
+      if (result.status === 'success') {
+        if (onLanguageChange) onLanguageChange(lang)
+      } else {
+        alert(`Failed to set language: ${result.message || 'Unknown error'}`)
+      }
+    } catch (error) {
+      console.error('Failed to set game language:', error)
+      alert('Failed to set game language')
+    } finally {
+      setLangLoading(false)
+    }
+  }
+
+  const handleSaveLanguage = async () => {
+    setLangSaving(true)
+    try {
+      const result = await saveGameLanguageToConfig(gameLanguage)
+      if (result.status === 'success') {
+        alert(`✅ Saved! Game language "${gameLanguage === 'fr' ? 'Français' : 'English'}" will be used on startup.`)
+      } else {
+        alert(`Failed to save: ${result.message || 'Unknown error'}`)
+      }
+    } catch (error) {
+      console.error('Failed to save game language:', error)
+      alert('Failed to save game language to config')
+    } finally {
+      setLangSaving(false)
     }
   }
 
@@ -297,6 +333,85 @@ function CameraSelector({ onCameraChange }) {
           lineHeight: '1.4'
         }}>
           ⚠️ Changing aspect ratio requires recapturing templates &amp; recalibrating detection zones
+        </div>
+      </div>
+
+      {/* Game Language Section */}
+      <div style={{
+        marginTop: '1rem',
+        paddingTop: '1rem',
+        borderTop: '1px solid var(--border-glow)'
+      }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+          <div className="stat-label" style={{ marginBottom: 0 }}>
+            🌐 Game Language
+          </div>
+          <div className="neon-text" style={{ fontSize: '0.9rem', fontWeight: 'bold' }}>
+            {gameLanguage === 'fr' ? 'FR' : 'EN'}
+          </div>
+        </div>
+
+        <select
+          value={gameLanguage}
+          onChange={(e) => handleLanguageChange(e.target.value)}
+          disabled={langLoading}
+          style={{
+            width: '100%',
+            padding: '0.75rem',
+            fontSize: '0.9rem',
+            background: 'rgba(0, 0, 0, 0.5)',
+            border: '1px solid var(--accent-yellow)',
+            color: 'var(--text-primary)',
+            borderRadius: '4px',
+            cursor: 'pointer'
+          }}
+        >
+          <option value="en" style={{ background: 'var(--bg-secondary)' }}>
+            🇬🇧 English — "BOLD nature."
+          </option>
+          <option value="fr" style={{ background: 'var(--bg-secondary)' }}>
+            🇫🇷 Français — "de nature ASSURÉ."
+          </option>
+        </select>
+
+        {(langLoading || langSaving) && (
+          <div style={{
+            marginTop: '0.5rem',
+            textAlign: 'center',
+            color: 'var(--accent-yellow)',
+            fontSize: '0.85rem'
+          }}>
+            {langLoading ? 'Applying...' : 'Saving...'}
+          </div>
+        )}
+
+        <button
+          onClick={handleSaveLanguage}
+          disabled={langLoading || langSaving}
+          style={{
+            width: '100%',
+            marginTop: '0.5rem',
+            padding: '0.5rem',
+            background: 'rgba(0, 255, 0, 0.1)',
+            border: '1px solid var(--accent-green)',
+            color: 'var(--accent-green)',
+            borderRadius: '4px',
+            cursor: 'pointer',
+            fontSize: '0.75rem',
+            fontFamily: 'inherit',
+            fontWeight: 'bold'
+          }}
+        >
+          💾 Save Language
+        </button>
+
+        <div style={{
+          marginTop: '0.5rem',
+          fontSize: '0.7rem',
+          color: 'var(--text-secondary)',
+          lineHeight: '1.4'
+        }}>
+          💡 Set your Pokémon game's language for accurate nature OCR detection
         </div>
       </div>
     </div>

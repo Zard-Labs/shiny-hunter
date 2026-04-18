@@ -185,11 +185,17 @@ class NotificationService:
         pokemon_name: str = "Pokémon",
         encounter_count: int = 0,
         screenshot_path: Optional[Path] = None,
+        extra_text: str = "",
     ) -> None:
         """Fire-and-forget notification when a shiny is found.
 
         Reads the saved settings. If Pushover is disabled or not configured
         the call silently returns.
+
+        Parameters
+        ----------
+        extra_text : str, optional
+            Additional text to append to the message body (e.g. skip reason).
         """
         settings = self.get_settings()
 
@@ -199,6 +205,8 @@ class NotificationService:
                 f"✨ SHINY {pokemon_name.upper()} FOUND after "
                 f"{encounter_count:,} encounters!"
             )
+            if extra_text:
+                message += f"\n{extra_text}"
             try:
                 result = await self._send_pushover(
                     message=message,

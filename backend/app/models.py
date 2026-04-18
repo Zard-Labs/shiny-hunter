@@ -95,6 +95,7 @@ class Encounter(Base):
     video_clip_path = Column(String(255))  # MP4 clip of sparkle analysis frames
     detection_confidence = Column(Float)  # 0.0 - 1.0
     state_at_capture = Column(String(50))  # State machine phase
+    skipped_reason = Column(String(255), nullable=True)  # e.g. "Nature mismatch: Hasty (wanted: Adamant, Jolly)"
     
     __table_args__ = (
         Index('idx_session', 'session_id'),
@@ -115,6 +116,22 @@ class Session(Base):
     total_encounters = Column(Integer, default=0)
     shiny_found = Column(Boolean, default=False)
     status = Column(String(20))  # 'active', 'completed', 'stopped'
+
+
+class RecoveryEvent(Base):
+    """Log of watchdog recovery events."""
+    __tablename__ = "recovery_events"
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    hunt_id = Column(String(36), nullable=True, index=True)
+    session_id = Column(String(36), nullable=True)
+    timestamp = Column(DateTime(timezone=True), server_default=func.now())
+    step_name = Column(String(50), nullable=False)       # Step that timed out
+    time_in_step = Column(Float, nullable=False)          # Seconds spent in step
+    timeout_value = Column(Float, nullable=False)         # Configured timeout
+    strategy = Column(String(20), nullable=False)         # 'soft_reset', 'retry_step', 'goto_step', 'stop'
+    recovery_count = Column(Integer, default=1)           # Nth recovery this session
+    details = Column(Text, nullable=True)                 # JSON blob with extra context
 
 
 class Configuration(Base):

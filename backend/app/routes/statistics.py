@@ -8,7 +8,7 @@ from sqlalchemy import desc, func as sql_func
 from typing import Optional
 
 from app.database import get_db
-from app.models import Encounter, Hunt
+from app.models import Encounter, Hunt, RecoveryEvent
 from app.schemas import StatisticsResponse, HistoryResponse, EncounterResponse, HuntResponse
 from app.services.game_engine import game_engine
 from app.utils.logger import logger
@@ -308,4 +308,45 @@ async def get_chart_data(
     
     except Exception as e:
         logger.error(f"Error getting chart data: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ---------------------------------------------------------------------------
+#  GET /recovery-events  —  watchdog recovery event log
+# ---------------------------------------------------------------------------
+@router.get("/recovery-events")
+async def get_recovery_events(
+    hunt_id: Optional[str] = None,
+    limit: int = Query(default=50, le=200),
+    db: Session = Depends(get_db)
+):
+    """Get recovery events, optionally filtered by hunt."""
+    try:
+        query = db.query(RecoveryEvent)
+        if hunt_id:
+            query = query.filter(RecoveryEvent.hunt_id == hunt_id)
+
+        events = query.order_by(desc(RecoveryEvent.timestamp)).limit(limit).all()
+
+        return {
+            "events": [
+                {
+                    "id": e.id,
+                    "hunt_id": e.hunt_id,
+                    "session_id": e.session_id,
+                    "timestamp": e.timestamp.isoformat() if e.timestamp else None,
+                    "step_name": e.step_name,
+                    "time_in_step": e.time_in_step,
+                    "timeout_value": e.timeout_value,
+                    "strategy": e.strategy,
+                    "recovery_count": e.recovery_count,
+                    "details": e.details,
+                }
+                for e in events
+            ],
+            "total": len(events),
+        }
+
+    except Exception as e:
+        logger.error(f"Error getting recovery events: {e}")
         raise HTTPException(status_code=500, detail=str(e))

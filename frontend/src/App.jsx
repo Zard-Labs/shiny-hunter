@@ -11,8 +11,9 @@ import ESP32Config from './components/ESP32Config'
 import TemplateCapturePanel from './components/TemplateCapturePanel'
 import HuntSelector from './components/HuntSelector'
 import TemplateLibrary from './components/TemplateLibrary'
+import RecoveryLog from './components/RecoveryLog'
 import useWebSocket from './hooks/useWebSocket.jsx'
-import { getAutomationStatus, getStatistics, getHistory } from './services/api'
+import { getAutomationStatus, getStatistics, getHistory, getGameLanguage } from './services/api'
 import './styles/App.css'
 
 // Polling interval when WebSocket is disconnected (fallback only)
@@ -37,6 +38,7 @@ function App() {
   const [showSettings, setShowSettings] = useState(false)
   const [showTemplateLibrary, setShowTemplateLibrary] = useState(false)
   const [selectedHuntId, setSelectedHuntId] = useState(null) // null = active hunt
+  const [gameLanguage, setGameLanguageState] = useState('en')
   const { connected, lastMessage } = useWebSocket()
 
   // In-flight guard to prevent overlapping requests
@@ -66,6 +68,13 @@ function App() {
   useEffect(() => {
     fetchData()
   }, [fetchData])
+
+  // Fetch game language on mount
+  useEffect(() => {
+    getGameLanguage()
+      .then(data => setGameLanguageState(data.language || 'en'))
+      .catch(() => {})
+  }, [])
 
   // Fallback polling — ONLY when WebSocket is disconnected
   useEffect(() => {
@@ -98,6 +107,16 @@ function App() {
         break
       case 'encounter_detected':
       case 'shiny_found':
+        fetchData()
+        break
+      case 'recovery_triggered':
+        // Re-fetch data to update stats
+        fetchData()
+        break
+      case 'automation_error':
+        fetchData()
+        break
+      case 'shiny_skipped':
         fetchData()
         break
       default:
@@ -139,7 +158,7 @@ function App() {
 
       <div className="main-layout">
         <div className="left-panel">
-          <CameraSelector onCameraChange={fetchData} />
+          <CameraSelector onCameraChange={fetchData} gameLanguage={gameLanguage} onLanguageChange={setGameLanguageState} />
           <ESP32Config />
           <TemplateCapturePanel />
         </div>
@@ -165,8 +184,9 @@ function App() {
             selectedHuntId={selectedHuntId}
             onHuntChange={handleHuntChange}
           />
-          <StatisticsPanel statistics={statistics} />
-          <HistoryTable history={history} />
+          <StatisticsPanel statistics={statistics} automationStatus={automationStatus} gameLanguage={gameLanguage} />
+          <HistoryTable history={history} gameLanguage={gameLanguage} />
+          <RecoveryLog huntId={selectedHuntId} />
         </div>
       </div>
 

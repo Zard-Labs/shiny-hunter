@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { API_BASE_URL } from '../services/api'
+import { displayNature } from '../utils/natureUtils'
 
-function HistoryTable({ history }) {
+function HistoryTable({ history, gameLanguage = 'en' }) {
   const [selectedEncounter, setSelectedEncounter] = useState(null)
 
   const formatTimestamp = (timestamp) => {
@@ -80,7 +81,7 @@ function HistoryTable({ history }) {
                     </span>
                   </td>
                   <td style={{ fontSize: '0.85rem' }}>
-                    {encounter.nature || 'Unknown'}
+                    {displayNature(encounter.nature, gameLanguage) || 'Unknown'}
                   </td>
                   <td>
                     {encounter.is_shiny && (
@@ -128,7 +129,7 @@ function HistoryTable({ history }) {
               <div className="stat-box">
                 <div className="stat-label">Nature</div>
                 <div className="stat-value" style={{ fontSize: '1.5rem' }}>
-                  {selectedEncounter.nature || 'Unknown'}
+                  {displayNature(selectedEncounter.nature, gameLanguage) || 'Unknown'}
                 </div>
               </div>
             </div>

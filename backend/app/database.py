@@ -129,6 +129,13 @@ def _migrate_db():
             """))
             conn.commit()
         
+        # --- Add skipped_reason column to encounters if missing ---
+        if _table_exists(inspector, 'encounters') and not _column_exists(inspector, 'encounters', 'skipped_reason'):
+            conn.execute(text("""
+                ALTER TABLE encounters ADD COLUMN skipped_reason VARCHAR(255)
+            """))
+            conn.commit()
+        
         # --- Ensure there's an active hunt; backfill orphaned data ---
         result = conn.execute(text("SELECT id FROM hunts WHERE status = 'active' LIMIT 1"))
         active_hunt = result.fetchone()
@@ -237,6 +244,85 @@ def _migrate_sparkle_thresholds(conn):
         print(f"[migrate] Updated sparkle thresholds in {updated} template(s)")
 
 
+def _backfill_template_images(conn, template_id, seed_data, seed_dir, runtime_base, now):
+    """Backfill missing template_images rows and image files for an existing template.
+
+    Called during startup when a seed template already exists in the DB
+    but may be missing its ``template_images`` rows or image files on disk
+    (e.g. the user upgraded from an older version that didn't seed images).
+    """
+    seed_images = seed_data.get("images", [])
+    if not seed_images:
+        return  # Nothing to backfill
+
+    # Check which image keys already exist in the DB for this template
+    existing_rows = conn.execute(
+        text("SELECT key FROM template_images WHERE automation_template_id = :tid"),
+        {"tid": template_id},
+    ).fetchall()
+    existing_keys = {row[0] for row in existing_rows}
+
+    # Insert any missing template_images rows
+    added = 0
+    for img_info in seed_images:
+        key = img_info.get("key", "")
+        if not key or key in existing_keys:
+            continue
+        conn.execute(text("""
+            INSERT INTO template_images
+                (id, automation_template_id, key, label,
+                 description, threshold, created_at)
+            VALUES
+                (:id, :tmpl_id, :key, :label,
+                 :desc, :threshold, :now)
+        """), {
+            "id": str(uuid.uuid4()),
+            "tmpl_id": template_id,
+            "key": key,
+            "label": img_info.get("label", key.replace("_", " ").title()),
+            "desc": img_info.get("description", ""),
+            "threshold": img_info.get("threshold", 0.80),
+            "now": now,
+        })
+        added += 1
+
+    # Copy any missing seed image files into the runtime directory
+    seed_images_dir = seed_dir / "images"
+    tmpl_runtime_dir = runtime_base / template_id
+    tmpl_runtime_dir.mkdir(parents=True, exist_ok=True)
+
+    if seed_images_dir.exists():
+        for src_file in seed_images_dir.iterdir():
+            if src_file.is_file() and src_file.suffix.lower() == ".png":
+                dst_file = tmpl_runtime_dir / src_file.name
+                if not dst_file.exists():
+                    shutil.copy2(str(src_file), str(dst_file))
+
+    # Update image_path / color_image_path for any newly-added rows
+    for img_info in seed_images:
+        key = img_info.get("key", "")
+        if not key:
+            continue
+        gray_path = tmpl_runtime_dir / f"{key}.png"
+        color_path = tmpl_runtime_dir / f"{key}_color.png"
+        conn.execute(text("""
+            UPDATE template_images
+            SET image_path = COALESCE(image_path, :gray),
+                color_image_path = COALESCE(color_image_path, :color)
+            WHERE automation_template_id = :tmpl_id AND key = :key
+              AND (image_path IS NULL OR color_image_path IS NULL)
+        """), {
+            "gray": str(gray_path) if gray_path.exists() else None,
+            "color": str(color_path) if color_path.exists() else None,
+            "tmpl_id": template_id,
+            "key": key,
+        })
+
+    if added > 0:
+        conn.commit()
+        print(f"[seed] Backfilled {added} missing image(s) for template '{seed_data.get('name', '?')}' (id={template_id})")
+
+
 def _seed_templates_from_directory(conn, inspector):
     """Scan ``seed_templates/`` and seed any bundled automation templates.
 
@@ -286,13 +372,17 @@ def _seed_templates_from_directory(conn, inspector):
 
         seed_name = seed_data.get("name", seed_dir.name)
 
-        # ── Skip if a template with this name already exists ────
-        already_exists = conn.execute(
-            text("SELECT COUNT(*) FROM automation_templates WHERE name = :name"),
+        # ── Check if a template with this name already exists ────
+        existing_row = conn.execute(
+            text("SELECT id FROM automation_templates WHERE name = :name"),
             {"name": seed_name},
-        ).scalar()
-        if already_exists > 0:
-            print(f"[seed] Skipping '{seed_name}' — already exists in DB")
+        ).fetchone()
+        if existing_row is not None:
+            # Template exists — but backfill any missing image rows and files
+            # (handles upgrades from older versions that didn't seed images)
+            _backfill_template_images(
+                conn, existing_row[0], seed_data, seed_dir, runtime_base, now,
+            )
             continue
 
         template_id = str(uuid.uuid4())

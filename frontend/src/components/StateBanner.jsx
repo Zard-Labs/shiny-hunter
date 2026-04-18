@@ -12,6 +12,7 @@ const STEP_TYPE_ICONS = {
 
 function StateBanner({ status, connected }) {
   const [esp32Status, setEsp32Status] = useState({ connected: false, mode: 'unknown' })
+  const [elapsedInStep, setElapsedInStep] = useState(0)
   const fetchingRef = useRef(false)
 
   useEffect(() => {
@@ -19,6 +20,22 @@ function StateBanner({ status, connected }) {
     const interval = setInterval(fetchESP32Status, ESP32_POLL_MS)
     return () => clearInterval(interval)
   }, [])
+
+  // Timer for time-in-step — ticks every second while running
+  useEffect(() => {
+    if (!status.is_running || !status.step_entered_at) {
+      setElapsedInStep(0)
+      return
+    }
+
+    const tick = () => {
+      const now = Date.now() / 1000
+      setElapsedInStep(Math.max(0, now - status.step_entered_at))
+    }
+    tick() // Immediate first tick
+    const interval = setInterval(tick, 1000)
+    return () => clearInterval(interval)
+  }, [status.is_running, status.step_entered_at])
 
   const fetchESP32Status = async () => {
     if (fetchingRef.current) return
@@ -42,6 +59,13 @@ function StateBanner({ status, connected }) {
   const stateLabel = status.step_display_name || stateKey
   const stepType = status.step_type
   const stepIcon = STEP_TYPE_ICONS[stepType] || (isRunning ? '🔄' : '⏸️')
+
+  // Color-code the time-in-step
+  const getStepTimeColor = (seconds) => {
+    if (seconds < 30) return 'var(--accent-green, #00ff88)'
+    if (seconds <= 50) return 'var(--accent-yellow, #FFD700)'
+    return '#ff4444'
+  }
 
   return (
     <div className={`state-banner ${isShiny ? 'state-banner--shiny' : ''}`}>
@@ -97,6 +121,42 @@ function StateBanner({ status, connected }) {
           <span className="state-banner__conn-label">MON</span>
         </div>
       </div>
+
+      {/* Watchdog & target info row */}
+      {isRunning && (
+        <div style={{
+          display: 'flex',
+          gap: '1rem',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          marginTop: '0.35rem',
+          paddingTop: '0.35rem',
+          borderTop: '1px solid rgba(255,255,255,0.06)',
+          fontSize: '0.8rem',
+          fontFamily: "'Courier New', monospace",
+        }}>
+          {/* Time in step */}
+          {status.step_entered_at > 0 && (
+            <span style={{ color: getStepTimeColor(elapsedInStep) }}>
+              ⏱ Step: {stateLabel} — {Math.floor(elapsedInStep)}s
+            </span>
+          )}
+
+          {/* Recovery count */}
+          {(status.recovery_count || 0) > 0 && (
+            <span style={{ color: 'var(--accent-yellow, #FFD700)' }}>
+              🔄 {status.recovery_count} recoveries
+            </span>
+          )}
+
+          {/* Skipped shinies */}
+          {(status.skipped_shinies || 0) > 0 && (
+            <span style={{ color: '#FFD700' }}>
+              ⏭ {status.skipped_shinies} shinies skipped
+            </span>
+          )}
+        </div>
+      )}
     </div>
   )
 }

@@ -52,6 +52,14 @@ export const resetStatistics = async () => {
   return response.data
 }
 
+// Recovery events
+export const getRecoveryEvents = async (huntId = null, limit = 50) => {
+  let url = `/api/statistics/recovery-events?limit=${limit}`
+  if (huntId) url += `&hunt_id=${huntId}`
+  const response = await api.get(url)
+  return response.data
+}
+
 // Manual Control
 export const sendButtonPress = (button) => 
   api.post('/api/control/button', { button })
@@ -132,6 +140,22 @@ export const setCropMode = async (mode) => {
 
 export const saveCropModeToConfig = async (mode) => {
   const response = await api.post('/api/camera/crop-mode/save', { mode })
+  return response.data
+}
+
+// Game Language
+export const getGameLanguage = async () => {
+  const response = await api.get('/api/camera/game-language')
+  return response.data
+}
+
+export const setGameLanguage = async (language) => {
+  const response = await api.post('/api/camera/game-language', { language })
+  return response.data
+}
+
+export const saveGameLanguageToConfig = async (language) => {
+  const response = await api.post('/api/camera/game-language/save', { language })
   return response.data
 }
 

@@ -1,6 +1,6 @@
 {
   "name": "RedGreen Magikarp Hunt",
-  "description": "Magikarp merchant shiny hunt in Pokemon FireRed/LeafGreen. Buy Magikarp \u2192 check summary for shiny \u2192 reset.",
+  "description": "Magikarp merchant shiny hunt in Pokemon FireRed/LeafGreen. Buy Magikarp → check summary for shiny → reset.",
   "game": "Pokemon RedGreen",
   "pokemon_name": "Magikarp",
   "definition": {
@@ -32,12 +32,27 @@
       "wait_after": 3,
       "max_retries": 3
     },
+    "global_recovery": {
+      "default_timeout": 60,
+      "default_strategy": "soft_reset",
+      "max_consecutive_recoveries": 10,
+      "stop_on_max_recoveries": true
+    },
+    "target_criteria": {
+      "enabled": false,
+      "desired_natures": [],
+      "desired_gender": null,
+      "on_mismatch": "keep_hunting",
+      "always_stop_on_shiny": false,
+      "max_shiny_skips": 0
+    },
     "steps": [
       {
         "name": "KARP_BUY",
         "display_name": "Magikarp Purchase?",
         "type": "navigate",
         "cooldown": 0.6,
+        "timeout": 45,
         "rules": [
           {
             "condition": {
@@ -65,6 +80,7 @@
         "display_name": "Pokemon Menu",
         "type": "navigate",
         "cooldown": 0.6,
+        "timeout": 45,
         "rules": [
           {
             "condition": {
@@ -88,6 +104,7 @@
         "display_name": "Magikarp Details Screen",
         "type": "navigate",
         "cooldown": 0.6,
+        "timeout": 45,
         "rules": [
           {
             "condition": {
@@ -105,6 +122,7 @@
         "name": "SHINY_CHECK",
         "display_name": "Shiny Check",
         "type": "shiny_check",
+        "timeout": 30,
         "pre_check_delay": 1.5,
         "buffer_flush_frames": 20,
         "collect_gender": true,

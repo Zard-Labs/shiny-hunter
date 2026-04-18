@@ -24,6 +24,41 @@ VALID_NATURES_SET = set(VALID_NATURES)
 VALID_NATURES_UPPER = [n.upper() for n in VALID_NATURES]
 UPPER_TO_PROPER = {n.upper(): n for n in VALID_NATURES}
 
+# ── French nature support ─────────────────────────────────────────────
+# French nature name → English equivalent (Gen III/IV Pokémon games)
+FRENCH_TO_ENGLISH = {
+    'Hardi':    'Hardy',
+    'Solo':     'Lonely',
+    'Brave':    'Brave',
+    'Rigide':   'Adamant',
+    'Mauvais':  'Naughty',
+    'Assuré':   'Bold',
+    'Docile':   'Docile',
+    'Relax':    'Relaxed',
+    'Malin':    'Impish',
+    'Lâche':    'Lax',
+    'Timide':   'Timid',
+    'Pressé':   'Hasty',
+    'Sérieux':  'Serious',
+    'Jovial':   'Jolly',
+    'Naïf':     'Naive',
+    'Modeste':  'Modest',
+    'Doux':     'Mild',
+    'Discret':  'Quiet',
+    'Pudique':  'Bashful',
+    'Foufou':   'Rash',
+    'Calme':    'Calm',
+    'Gentil':   'Gentle',
+    'Malpoli':  'Sassy',
+    'Prudent':  'Careful',
+    'Bizarre':  'Quirky',
+}
+
+# French nature names list (for fuzzy matching)
+FRENCH_NATURES = list(FRENCH_TO_ENGLISH.keys())
+FRENCH_NATURES_UPPER = [n.upper() for n in FRENCH_NATURES]
+FRENCH_UPPER_TO_ENGLISH = {n.upper(): FRENCH_TO_ENGLISH[n] for n in FRENCH_NATURES}
+
 
 class OpenCVDetector:
     """
@@ -572,21 +607,43 @@ class OpenCVDetector:
             logger.error(f"Error detecting gender: {e}")
             return 'Unknown'
     
-    def _fuzzy_match_nature(self, ocr_word: str) -> str:
+    def _fuzzy_match_nature(self, ocr_word: str, language: str = 'en') -> str:
         """
         Fuzzy match an OCR-read word against the list of valid Pokemon natures.
         
         Uses difflib to find the closest match, handling common OCR errors
         like N→H, D→O in the GBA pixel font.
         
+        When language='fr', matches against French nature names and returns
+        the English equivalent for normalized DB storage.
+        
         Args:
-            ocr_word: The word read by OCR (e.g., 'HAUGHTY', 'BOLO')
+            ocr_word: The word read by OCR (e.g., 'HAUGHTY', 'BOLO', 'TIMIDE')
+            language: Game language ('en' or 'fr')
         
         Returns:
-            Properly capitalized nature name or 'Unknown'
+            English nature name (capitalized, e.g., 'Naughty') or 'Unknown'
         """
         word_upper = ocr_word.upper().strip()
         
+        if language == 'fr':
+            # ── French matching: match against French natures, return English ──
+            # 1. Exact match against French uppercase
+            if word_upper in FRENCH_UPPER_TO_ENGLISH:
+                return FRENCH_UPPER_TO_ENGLISH[word_upper]
+            
+            # 2. Fuzzy match against French natures (handles OCR mangling accents)
+            matches = difflib.get_close_matches(
+                word_upper, FRENCH_NATURES_UPPER, n=1, cutoff=0.6
+            )
+            if matches:
+                english = FRENCH_UPPER_TO_ENGLISH[matches[0]]
+                logger.info(f"OCR fuzzy matched (fr) '{ocr_word}' -> '{english}'")
+                return english
+            
+            # 3. Fall through to English matching (some natures are identical)
+        
+        # ── English matching (default) ──
         # 1. Exact match
         if word_upper in UPPER_TO_PROPER:
             return UPPER_TO_PROPER[word_upper]
@@ -661,20 +718,25 @@ class OpenCVDetector:
         Detect Pokemon nature using OCR on the TRAINER MEMO text region.
         
         Reads the text from the summary screen's TRAINER MEMO area,
-        then extracts the word before 'nature' (e.g., "NAUGHTY nature.").
+        then extracts the nature word. Supports both English and French:
+          - English: "NAUGHTY nature." → word BEFORE 'nature'
+          - French:  "de nature TIMIDE." → word AFTER 'nature'
+        
+        Always returns the English nature name for normalized DB storage.
         
         Args:
             color_frame: Color frame (BGR format) of the summary screen
         
         Returns:
-            Nature name (capitalized, e.g., 'Naughty') or 'Unknown'
+            English nature name (capitalized, e.g., 'Naughty') or 'Unknown'
         """
         if self.ocr_engine is False:
             logger.warning("[Nature] OCR engine not available — returning Unknown")
             return 'Unknown'
         
         try:
-            # Get nature text zone coordinates from config
+            # Get game language and nature text zone coordinates from config
+            lang = settings.game_language
             nz = settings.nature_text_zone
             ux = nz.get('upper_x', 0)
             uy = nz.get('upper_y', 300)
@@ -685,7 +747,7 @@ class OpenCVDetector:
             logger.info(
                 f"[Nature] Frame size: {w}x{h} | "
                 f"Zone: ({ux},{uy})->({lx},{ly}) | "
-                f"crop_mode={settings.crop_mode}"
+                f"crop_mode={settings.crop_mode} | lang={lang}"
             )
             
             # Bounds check — clamp to frame dimensions
@@ -719,37 +781,62 @@ class OpenCVDetector:
             full_text = ' '.join(texts)
             logger.info(f"[Nature] OCR text: '{full_text}'")
             
-            # Try to find the word before 'nature' (case-insensitive)
-            match = re.search(r'(\w+)\s+nature', full_text, re.IGNORECASE)
+            # ── Choose regex pattern based on game language ──
+            if lang == 'fr':
+                # French: "de nature TIMIDE." → nature word comes AFTER 'nature'
+                match = re.search(r'nature\s+(\w+)', full_text, re.IGNORECASE | re.UNICODE)
+            else:
+                # English: "NAUGHTY nature." → nature word comes BEFORE 'nature'
+                match = re.search(r'(\w+)\s+nature', full_text, re.IGNORECASE)
+            
             if match:
                 nature_word = match.group(1)
-                matched_nature = self._fuzzy_match_nature(nature_word)
+                matched_nature = self._fuzzy_match_nature(nature_word, lang)
                 logger.info(f"[Nature] Regex matched word='{nature_word}' -> '{matched_nature}'")
                 if matched_nature == 'Unknown':
                     self._save_nature_debug(
-                        roi, scaled, f'fuzzy_fail_regex (word={nature_word})',
+                        roi, scaled, f'fuzzy_fail_regex (word={nature_word}, lang={lang})',
                         result, full_text
                     )
                 return matched_nature
             
-            # Fallback: find the text right before the "nature" entry
+            # Fallback: find the text adjacent to the "nature" entry
             # Sometimes OCR splits them into separate entries
             for i, item in enumerate(result):
                 text = item[1].strip().lower()
                 if text == 'nature' or text == 'nature.':
-                    if i > 0:
-                        nature_word = result[i - 1][1]
-                        matched_nature = self._fuzzy_match_nature(nature_word)
-                        logger.info(
-                            f"[Nature] Fallback matched word='{nature_word}' -> '{matched_nature}'"
-                        )
-                        if matched_nature == 'Unknown':
-                            self._save_nature_debug(
-                                roi, scaled,
-                                f'fuzzy_fail_fallback (word={nature_word})',
-                                result, full_text
+                    if lang == 'fr':
+                        # French: nature word comes AFTER 'nature'
+                        if i < len(result) - 1:
+                            nature_word = result[i + 1][1]
+                            # Strip trailing period if present
+                            nature_word = nature_word.rstrip('.')
+                            matched_nature = self._fuzzy_match_nature(nature_word, lang)
+                            logger.info(
+                                f"[Nature] Fallback (fr) matched word='{nature_word}' -> '{matched_nature}'"
                             )
-                        return matched_nature
+                            if matched_nature == 'Unknown':
+                                self._save_nature_debug(
+                                    roi, scaled,
+                                    f'fuzzy_fail_fallback_fr (word={nature_word})',
+                                    result, full_text
+                                )
+                            return matched_nature
+                    else:
+                        # English: nature word comes BEFORE 'nature'
+                        if i > 0:
+                            nature_word = result[i - 1][1]
+                            matched_nature = self._fuzzy_match_nature(nature_word, lang)
+                            logger.info(
+                                f"[Nature] Fallback matched word='{nature_word}' -> '{matched_nature}'"
+                            )
+                            if matched_nature == 'Unknown':
+                                self._save_nature_debug(
+                                    roi, scaled,
+                                    f'fuzzy_fail_fallback (word={nature_word})',
+                                    result, full_text
+                                )
+                            return matched_nature
             
             logger.info(f"[Nature] No 'nature' keyword found in OCR text: '{full_text}'")
             self._save_nature_debug(roi, scaled, 'no_pattern', result, full_text)

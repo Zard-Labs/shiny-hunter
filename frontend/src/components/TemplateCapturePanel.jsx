@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import {
   getAutomationTemplates,
+  getAutomationTemplate,
   getAutomationTemplateImages,
   captureAutomationTemplateImage,
   deleteAutomationTemplateImage,
@@ -10,6 +11,7 @@ import {
 function TemplateCapturePanel() {
   const [images, setImages] = useState([])
   const [activeTemplate, setActiveTemplate] = useState(null)
+  const [definition, setDefinition] = useState(null)
   const [loading, setLoading] = useState(false)
   const [capturingKey, setCapturingKey] = useState(null)
   const [expanded, setExpanded] = useState(false)
@@ -25,7 +27,14 @@ function TemplateCapturePanel() {
       const active = templates.find(t => t.is_active)
       setActiveTemplate(active || null)
       if (active) {
-        await fetchImages(active.id)
+        // Fetch full template detail (includes definition) and images in parallel
+        const [detail] = await Promise.all([
+          getAutomationTemplate(active.id),
+          fetchImages(active.id),
+        ])
+        setDefinition(detail?.definition || null)
+      } else {
+        setDefinition(null)
       }
     } catch (error) {
       console.error('Failed to fetch templates:', error)
@@ -40,6 +49,28 @@ function TemplateCapturePanel() {
       console.error('Failed to fetch template images:', error)
     }
   }
+
+  // Derive required image keys from the definition's rules
+  // (same approach as TemplateImageManager)
+  const requiredKeys = new Set()
+  if (definition?.steps) {
+    for (const step of definition.steps) {
+      for (const rule of step.rules || []) {
+        const tmpl = rule.condition?.template
+        if (tmpl) requiredKeys.add(tmpl)
+      }
+    }
+  }
+
+  // Merge DB images with definition-derived keys
+  const imageMap = {}
+  for (const img of images) imageMap[img.key] = img
+  for (const key of requiredKeys) {
+    if (!imageMap[key]) {
+      imageMap[key] = { key, label: key.replace(/_/g, ' '), captured: false, _derived: true }
+    }
+  }
+  const mergedImages = Object.keys(imageMap).sort().map(k => imageMap[k])
 
   const handleCapture = async (imageKey, imageLabel) => {
     if (!activeTemplate) return
@@ -74,11 +105,8 @@ function TemplateCapturePanel() {
     }
   }
 
-  const capturedCount = images.filter(t => t.captured).length
-  const totalCount = images.length
-
-  // Group images by their template key prefix for visual organization
-  // (no phase grouping since that's now in the definition, just show a flat list)
+  const capturedCount = mergedImages.filter(t => t.captured).length
+  const totalCount = mergedImages.length
 
   return (
     <div className="panel" style={{ marginBottom: '1rem' }}>
@@ -153,7 +181,7 @@ function TemplateCapturePanel() {
             Navigate your game to each screen, then click <strong>📸 Capture</strong> to save it.
           </p>
 
-          {images.length === 0 && activeTemplate && (
+          {mergedImages.length === 0 && activeTemplate && (
             <div style={{
               fontSize: '0.8rem',
               color: 'var(--text-secondary)',
@@ -164,7 +192,7 @@ function TemplateCapturePanel() {
             </div>
           )}
 
-          {images.map(img => (
+          {mergedImages.map(img => (
             <div 
               key={img.key}
               style={{

@@ -177,7 +177,7 @@ body::before {
   padding: 1.5rem;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
   position: relative;
-  overflow: visible;
+  overflow: clip;
 }
 
 .panel::before {
