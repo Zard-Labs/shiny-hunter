@@ -1,739 +1,334 @@
-# 🌟 ShinyStarter - Automated Shiny Pokemon Hunter
+# 🌟 ShinyStarter — Automated Shiny Pokémon Hunter
 
 <div align="center">
 
-**Automated shiny hunting system for Pokemon Red on Nintendo Switch**
+**Template-driven shiny hunting automation for Pokémon Red & Green on Nintendo Switch**
 
 ![Status](https://img.shields.io/badge/status-active-success)
 ![Backend](https://img.shields.io/badge/backend-FastAPI-009688)
 ![Frontend](https://img.shields.io/badge/frontend-React-61dafb)
-![Hardware](https://img.shields.io/badge/hardware-ESP32--C6-red)
+![Desktop](https://img.shields.io/badge/desktop-Electron-47848f)
+![Hardware](https://img.shields.io/badge/hardware-ESP32--S3-red)
+
+[Install Firmware](https://zard-labs.github.io/shiny-hunter) · [API Docs](http://localhost:8000/docs) · [Report Bug](https://github.com/Zard-Labs/shiny-hunter/issues)
 
 </div>
 
 ---
 
-## 🎯 Overview
+## Overview
 
-ShinyStarter is a complete automation system that hunts for shiny Pokemon in Pokemon Red (Nintendo Switch) by:
-- **Emulating controller inputs** via ESP32-C6 USB HID
-- **Capturing video feed** from Elgato capture card
-- **Detecting shiny Pokemon** using OpenCV color analysis
-- **Providing real-time dashboard** with statistics and monitoring
+ShinyStarter automates shiny hunting across multiple Pokémon games by combining computer vision with hardware controller emulation. A data-driven template engine lets you define any hunt strategy — starter resets, wild encounters, static encounters — without writing code.
 
 ### Key Features
-- ⚡ **Fully Automated**: Soft resets, menu navigation, shiny detection
-- 📊 **Live Statistics**: Real-time encounter tracking, nature/gender distribution
-- 🎥 **Video Feed**: Live capture with detection zone overlays
-- 🎮 **Manual Control**: Test button presses before automation
-- 🎯 **Calibration Tools**: Configure detection zones and templates
-- 📈 **Data Visualization**: Charts for natures, genders, and odds
-- 💾 **Screenshot Capture**: Auto-saves every encounter
+
+- 🧩 **Template Engine** — JSON-defined state machines drive all automation; create, edit, clone, and share hunt strategies
+- 🎮 **Multiple Hunt Types** — starter soft-resets, wild encounter sparkle detection, Magikarp purchases, static encounters
+- 🖥️ **Desktop App** — one-click Electron installer bundles everything (no Python/Node.js required for end users)
+- 📡 **Browser Firmware Installer** — flash ESP32-S3 from Chrome/Edge with zero tools installed
+- 📶 **WiFi Captive Portal** — ESP32 self-serves a setup page for WiFi config, no hardcoded credentials
+- 🎥 **Live Dashboard** — real-time video feed, detection overlays, statistics, and encounter history
+- ✨ **Dual Detection** — yellow-star pixel analysis for summary screens + battle-sparkle detection with continuous background monitoring
+- 📊 **Hunt Tracking** — group encounters into hunts, view per-hunt stats, archive and start fresh
 
 ---
 
-## 🏗️ System Architecture
+## Architecture
 
 ```
-┌─────────────┐        ┌──────────────┐        ┌─────────────────┐
-│   Nintendo  │  HDMI  │   Elgato Neo │  USB   │       PC        │
-│   Switch    ├───────►│ Capture Card ├───────►│   (Backend)     │
-│             │        └──────────────┘        │   Port 8000     │
-└──────┬──────┘                                 └────────┬────────┘
-       │                                                 │
-       │ USB-C (Controller)                             │ WiFi/HTTP
-       │                                                 │
-       │        ┌──────────────┐                        │
-       └────────┤   ESP32-C6   │◄───────────────────────┘
-                │ (HID Device) │
+┌─────────────┐        ┌──────────────┐        ┌──────────────────────┐
+│  Nintendo    │  HDMI  │  Capture     │  USB   │  PC                  │
+│  Switch      ├───────►│  Card        ├───────►│  Backend :8000       │
+└──────┬───────┘        └──────────────┘        │  (FastAPI + OpenCV)  │
+       │                                         └──────────┬───────────┘
+       │ USB-C (Controller)                                 │
+       │                                                     │ WiFi / HTTP
+       │        ┌──────────────┐                             │
+       └────────┤  ESP32-S3    │◄────────────────────────────┘
+                │  (USB HID)   │
                 └──────────────┘
-                                                         
-┌─────────────────────────────────────────────────────────┐
-│          Browser: http://localhost:3000                 │
-│      React Dashboard (Real-time WebSocket UI)           │
-└─────────────────────────────────────────────────────────┘
+
+┌──────────────────────────────────────────────────────────────────┐
+│  Desktop App (Electron)  — or —  Browser: http://localhost:3000  │
+│  React Dashboard with real-time WebSocket updates                │
+└──────────────────────────────────────────────────────────────────┘
 ```
 
-**Component Breakdown:**
-- **ESP32-C6**: Emulates Switch Pro Controller via USB HID, receives commands via WiFi
-- **Elgato Neo**: Captures 1080p video feed at 30 FPS
-- **Backend**: FastAPI server handles automation, OpenCV detection, statistics
-- **Frontend**: React dashboard with cyberpunk UI for real-time monitoring
+| Component | Role |
+|-----------|------|
+| **ESP32-S3** (Xiao) | Emulates Switch Pro Controller via USB HID; receives commands over WiFi |
+| **Capture Card** | Feeds 1080p video to the backend for OpenCV analysis |
+| **Backend** | FastAPI server — template interpreter, detection engine, statistics, WebSocket |
+| **Frontend** | React dashboard — live feed, controls, template library, calibration |
+| **Desktop** | Electron wrapper — bundles backend + frontend into a single installer |
 
 ---
 
-## 🚀 Quick Start
+## Getting Started
 
-### Prerequisites
+### Option A: Desktop App (Recommended)
 
-- **Python 3.8+** with pip
-- **Node.js 18+** with npm
-- **ESP32-C6** (Seeed Xiao ESP32-C6 or similar)
-- **Elgato Capture Card** (HD60, Neo, HD60S+, etc.)
-- **Nintendo Switch** with Pokemon Red
+1. Download the latest **ShinyStarter Setup** from [Releases](https://github.com/Zard-Labs/shiny-hunter/releases)
+2. Install and launch — the backend starts automatically
+3. Flash ESP32 firmware (see [Firmware Setup](#firmware-setup) below)
+4. Plug in your capture card and ESP32, then open the app
 
-### 1. Backend Setup
-
-```bash
-cd backend
-python -m venv venv
-venv\Scripts\activate          # Windows
-# source venv/bin/activate     # Linux/Mac
-pip install -r requirements.txt
-```
-
-**Configure `backend/config.yaml`:**
-- Set ESP32 IP address (if using WiFi)
-- Set camera index (usually 0 or 1)
-- Adjust detection thresholds if needed
-
-**Start Backend:**
-```bash
-start_server.bat              # Windows
-# ./start_server.sh           # Linux/Mac
-```
-
-Backend will be available at `http://localhost:8000`
-
-### 2. Frontend Setup
-
-```bash
-cd frontend
-npm install
-```
-
-**Start Frontend:**
-```bash
-start_frontend.bat            # Windows
-# ./start_frontend.sh         # Linux/Mac
-```
-
-Dashboard will be available at `http://localhost:3000`
-
-### 3. ESP32 Firmware
-
-```bash
-cd esp32
-platformio run --target upload
-```
-
-See [`esp32/README.md`](esp32/README.md) for detailed ESP32 setup instructions.
-
----
-
-## 📋 Complete Setup Guide
-
-### Step 1: Backend Verification ✅
-
-Your backend is **already running** and shows:
-- ✅ ESP32 connected (usb_hid mode)
-- ✅ Video capture opened (1920x1080 @ 30fps)
-- ✅ Server ready at http://0.0.0.0:8000
-
-### Step 2: Frontend Dashboard ✅
-
-Your frontend is **already running** at `http://localhost:3000`
-
-**Open in browser now** to see:
-- 📹 Live video feed from capture card
-- ⚡ Control panel with start/stop automation
-- 📊 Real-time statistics and charts
-- 📜 Encounter history table
-- 🎯 Calibration tools
-
-### Step 3: Capture Template Images (REQUIRED)
-
-The automation needs template images to recognize game screens.
-
-#### Navigate and Screenshot These Screens:
-
-**Save to: `backend/templates/pokemon_red/`**
-
-1. **title_screen.png** - Game Freak logo or title screen
-2. **load_game.png** - "CONTINUE" option on menu
-3. **nickname_screen.png** - "Want to give a nickname?" text
-4. **oak_lab.png** - Professor Oak in the lab
-5. **pokemon_menu.png** - "POKEMON" entry in START menu
-6. **choose_pokemon.png** - "CHOOSE A POKEMON" screen
-7. **summary_screen.png** - Pokemon info/summary screen
-
-**Save to: `backend/templates/natures/`**
-
-8. Capture all 25 nature name images (adamant.png, modest.png, etc.)
-
-#### How to Capture:
-1. Use Windows Snipping Tool or ShareX
-2. Play Pokemon Red and navigate to each screen
-3. Take screenshot of the specific UI element
-4. Save with exact name to templates folder
-5. Images should be clear PNG format
-
-### Step 4: Calibrate Detection Zones (REQUIRED)
-
-The system needs to know WHERE to look for shiny stars and gender symbols.
-
-**In the Dashboard:**
-1. Navigate to Charmander's summary screen
-2. Click "🎯 CALIBRATE" button
-3. Find the shiny star location (above Pokeball icon)
-4. Enter coordinates: Upper-Left (X,Y) and Lower-Right (X,Y)
-5. Repeat for gender symbol (next to name)
-6. Click "SAVE ZONE"
-
-**Default coordinates** (may need adjustment based on your capture resolution):
-- **Shiny Zone**: `ux: 264, uy: 109, lx: 312, ly: 151`
-- **Gender Zone**: `ux: 284, uy: 68, lx: 311, ly: 92`
-
-### Step 5: Game Save Setup
-
-Your Pokemon Red save must be positioned correctly:
-
-1. **Start Point**: Oak's lab, right after receiving Charmander
-2. **Party Position**: Charmander in slot 3 (third position)
-3. **Nickname**: Declined (automation expects no nickname prompt)
-4. **Save State**: Standing in lab, ready to open menu
-
-### Step 6: Test Automation
-
-1. **Test Manual Controls First**:
-   - Click individual buttons (A, B, START)
-   - Verify Switch responds correctly
-   - Try the SOFT RESET button
-
-2. **Start Automation**:
-   - Click "▶ START" in dashboard
-   - Watch state machine progress
-   - Monitor statistics panel
-   - Check video feed for detection overlays
-
-3. **Monitor Progress**:
-   - Encounter counter increases
-   - Nature/gender charts populate
-   - History table fills with logs
-   - System auto-saves screenshots
-
-4. **When Shiny Found**:
-   - Automation stops automatically
-   - Screenshot saved to `backend/encounters/`
-   - Notification appears in dashboard
-   - Celebrate! 🎉
-
----
-
-## 📁 Project Structure
-
-```
-ShinyStarter/
-├── backend/               # Python FastAPI server
-│   ├── app/
-│   │   ├── main.py       # Server entry point
-│   │   ├── routes/       # API endpoints
-│   │   ├── services/     # Game engine, OpenCV, ESP32 manager
-│   │   └── utils/        # Helper functions
-│   ├── templates/        # OpenCV template images (REQUIRED)
-│   ├── encounters/       # Auto-saved screenshots
-│   ├── config.yaml       # Main configuration
-│   └── requirements.txt
-│
-├── frontend/             # React dashboard
-│   ├── src/
-│   │   ├── App.jsx       # Root component
-│   │   ├── components/   # UI components
-│   │   ├── hooks/        # WebSocket, automation hooks
-│   │   └── services/     # API client
-│   ├── package.json
-│   └── vite.config.js
-│
-├── esp32/                # ESP32-C6 firmware
-│   ├── src/main.cpp      # Controller emulation
-│   ├── platformio.ini    # Build configuration
-│   └── README.md
-│
-├── plans/                # Architecture documentation
-├── NEXT_STEPS.md        # Detailed next steps guide
-└── README.md            # This file
-```
-
----
-
-## 🎮 How It Works
-
-### Automation Loop
-
-```
-1. PHASE_1_BOOT
-   ├─ Detect title screen
-   ├─ Press A through menus
-   └─ Decline nickname
-
-2. PHASE_2_OVERWORLD
-   ├─ Wait for Oak in lab
-   └─ Press B to clear dialogue
-
-3. PHASE_3_MENU
-   ├─ Press START to open menu
-   ├─ Navigate to POKEMON
-   ├─ Select Charmander (3rd slot)
-   └─ Open summary/info screen
-
-4. PHASE_4_CHECK
-   ├─ Capture screenshot
-   ├─ Analyze shiny zone (yellow pixels)
-   ├─ Detect gender (blue/red pixels)
-   ├─ Detect nature (template matching)
-   └─ Log to database
-
-5. Decision:
-   ├─ If SHINY → STOP automation ✨
-   └─ If normal → Soft reset (A+B+START+SELECT) → Loop to step 1
-```
-
-### Detection Methods
-
-**Shiny Detection (Color Masking)**:
-- Crop region above Pokeball icon
-- Convert to HSV color space
-- Count yellow pixels (20+ = shiny)
-- Threshold: `HSV [20-35, 100-255, 150-255]`
-
-**Gender Detection (Color Masking)**:
-- Crop region next to name
-- Male: Blue pixels (10+)
-- Female: Red/pink pixels (10+)
-
-**Nature Detection (Template Matching)**:
-- Match nature text against 25 templates
-- Method: Normalized correlation
-- Threshold: 0.85 confidence
-
-**Screen Navigation (Template Matching)**:
-- Match UI elements to navigate menus
-- Confirms correct game state
-- Triggers appropriate button presses
-
----
-
-## 🖥️ API Endpoints
-
-### Automation Control
-- `POST /api/automation/start` - Start hunting
-- `POST /api/automation/stop` - Stop hunting
-- `GET /api/automation/status` - Get current state
-
-### Statistics
-- `GET /api/statistics/current` - Current session stats
-- `GET /api/statistics/history` - Encounter log (paginated)
-- `GET /api/statistics/charts` - Chart data
-
-### Manual Control
-- `POST /api/control/button` - Send button press
-- `GET /api/control/esp32/status` - ESP32 connection status
-
-### Calibration
-- `POST /api/calibration/zone` - Save detection zone
-- `POST /api/calibration/template` - Upload template
-- `GET /api/calibration/current` - Get current calibration
-
-### WebSocket
-- `ws://localhost:8000/ws` - Real-time events and video stream
-
-See full API docs at `http://localhost:8000/docs` (Swagger UI)
-
----
-
-## 🎨 Dashboard Features
-
-<table>
-<tr>
-<td width="50%">
-
-### Control Panel
-- ▶️ Start/Stop automation
-- 🎮 Manual button controls
-- 🔄 Soft reset button
-- 🎯 Calibration modal
-- 📊 Connection status
-
-</td>
-<td width="50%">
-
-### Statistics Panel
-- 🔢 Total encounters
-- 📈 Shiny probability
-- ♂️♀️ Gender distribution
-- 🎲 Nature frequency chart
-- ⏱️ Session duration
-
-</td>
-</tr>
-<tr>
-<td width="50%">
-
-### Live Feed
-- 📹 Real-time video stream
-- 🎯 Detection zone overlays
-- 📊 FPS counter
-- 🔍 Visual debugging
-
-</td>
-<td width="50%">
-
-### History Table
-- 📜 Complete encounter log
-- ✨ Shiny highlighting
-- 🖼️ Screenshot viewer
-- 📊 Detailed stats per encounter
-
-</td>
-</tr>
-</table>
-
----
-
-## 📊 Current Status
-
-### ✅ Completed Components
-
-| Component | Status | Notes |
-|-----------|--------|-------|
-| Backend API | ✅ Running | Port 8000, all endpoints active |
-| ESP32 Connection | ✅ Connected | USB HID mode, Switch control verified |
-| Video Capture | ✅ Active | 1920x1080 @ 30fps from Elgato |
-| Database | ✅ Ready | SQLite with encounter tracking |
-| Frontend Dashboard | ✅ Running | Port 3000, cyberpunk UI |
-| WebSocket | ✅ Live | Real-time updates working |
-| Manual Controls | ✅ Working | Button press API functional |
-
-### 📸 Required Before Automation
-
-| Task | Status | Priority |
-|------|--------|----------|
-| Capture 7 UI templates | ❌ Needed | HIGH |
-| Capture 25 nature templates | ❌ Needed | HIGH |
-| Calibrate shiny zone | ❌ Needed | HIGH |
-| Calibrate gender zone | ❌ Needed | MEDIUM |
-| Position game save | ❌ Manual | HIGH |
-| Test button presses | ⚠️ Recommended | HIGH |
-
----
-
-## 🎮 Hardware Setup
-
-### Required Hardware
-1. **Nintendo Switch** with Pokemon Red (via NSO)
-2. **Elgato Capture Card** (HD60, Neo, HD60S+)
-3. **ESP32-C6** (Seeed Xiao ESP32-C6 recommended)
-4. **USB-C Cable** (ESP32 to Switch)
-5. **HDMI Cable** (Switch to Elgato)
-
-### Connection Diagram
-
-```
-[Switch] ─(HDMI)→ [Elgato] ─(USB)→ [PC]
-   ↑
-   └─(USB-C Controller)─ [ESP32-C6] ←(WiFi Commands)─ [PC]
-```
-
-### ESP32 Communication Modes
-
-**Current Mode: WiFi + USB HID (Recommended)**
-- ESP32 → Switch: USB-C cable (controller emulation)
-- PC → ESP32: WiFi HTTP commands
-- No additional hardware needed
-- ESP32 IP configured in `backend/config.yaml`
-
-**Alternative: UART Serial**
-- Requires USB-to-Serial adapter
-- More complex wiring but lower latency
-- See architecture docs for details
-
----
-
-## 🛠️ Installation Guide
-
-### Windows Installation (Recommended)
-
-See [`backend/WINDOWS_INSTALL.md`](backend/WINDOWS_INSTALL.md) for detailed Windows setup.
-
-**Quick Windows Setup:**
-```cmd
-:: 1. Install Python 3.8+
-:: 2. Install Node.js 18+
-
-:: Backend
-cd backend
-python -m venv venv
-venv\Scripts\activate
-pip install -r requirements.txt
-start_server.bat
-
-:: Frontend (new terminal)
-cd frontend
-npm install
-start_frontend.bat
-
-:: ESP32 (optional, if not already flashed)
-cd esp32
-platformio run --target upload
-```
-
-### Linux/Mac Installation
+### Option B: Developer Setup
 
 ```bash
 # Backend
 cd backend
-python3 -m venv venv
-source venv/bin/activate
+python -m venv venv && venv\Scripts\activate   # Windows
 pip install -r requirements.txt
-chmod +x start_server.sh
-./start_server.sh
+start_server.bat                                # or ./start_server.sh
 
-# Frontend (new terminal)
+# Frontend (separate terminal)
 cd frontend
-npm install
-chmod +x start_frontend.sh
-./start_frontend.sh
+npm install && npm run dev
 
-# ESP32
+# ESP32 firmware
 cd esp32
 platformio run --target upload
 ```
 
----
-
-## 📖 Usage Guide
-
-### Initial Setup (First Time)
-
-1. **Start Both Servers**:
-   ```bash
-   # Terminal 1: Backend
-   cd backend && start_server.bat
-   
-   # Terminal 2: Frontend  
-   cd frontend && start_frontend.bat
-   ```
-
-2. **Open Dashboard**: Navigate to `http://localhost:3000` in browser
-
-3. **Verify Connections**:
-   - WebSocket: Should show "Connected" (green indicator)
-   - ESP32: Should show "OK (usb_hid)"
-   - Video Feed: Should display capture card stream
-
-4. **Test Manual Controls**:
-   - Click A, B, START buttons
-   - Verify Switch responds
-   - Confirms ESP32 is controlling correctly
-
-### Template Capture
-
-**CRITICAL**: You must capture template images before automation works.
-
-1. **Play Pokemon Red** on your Switch
-2. **Navigate to each required screen**
-3. **Take screenshots** using:
-   - Windows: Snipping Tool, ShareX, OBS
-   - Mac: Shift+Cmd+4
-   - Linux: Flameshot, Spectacle
-4. **Save to template folders** with exact names
-5. **Verify in dashboard**: Calibration modal shows uploaded templates
-
-See [`NEXT_STEPS.md`](NEXT_STEPS.md) for detailed template list.
-
-### Zone Calibration
-
-1. **Load Pokemon Red** and get to Charmander's summary screen
-2. **Click "🎯 CALIBRATE"** in dashboard
-3. **Identify zones**:
-   - Shiny star appears above the Pokeball icon
-   - Gender symbol appears next to Pokemon name
-4. **Find pixel coordinates**:
-   - Use image editor (GIMP, Photoshop) to get X,Y positions
-   - Or use trial and error with live feed overlays
-5. **Enter coordinates** and save
-
-### Running Automation
-
-1. **Position Your Save**:
-   - Load Pokemon Red
-   - Be in Oak's lab, right after receiving Charmander
-   - Save the game at this point
-
-2. **Start Hunting**:
-   - Click "▶ START" in dashboard
-   - Watch state machine progress
-   - Statistics update in real-time
-
-3. **Monitor Progress**:
-   - Live feed shows detection zones
-   - Encounter counter increments
-   - Charts populate with data
-   - History table logs each reset
-
-4. **When Shiny Found**:
-   - Automation stops automatically
-   - Screenshot saved to `backend/encounters/`
-   - Dashboard shows shiny notification
-   - Review encounter details in history
+Backend: `http://localhost:8000` · Frontend: `http://localhost:3000` · API Docs: `http://localhost:8000/docs`
 
 ---
 
-## 🔧 Configuration
+## Firmware Setup
 
-### Backend Config (`backend/config.yaml`)
+### Flash the ESP32-S3
+
+**Browser (recommended):** Visit the [ShinyStarter Installer](https://zard-labs.github.io/shiny-hunter) in Chrome or Edge, connect the ESP32-S3 via USB-C, and click Install. No tools needed.
+
+**PlatformIO (developers):** `cd esp32 && platformio run --target upload`
+
+### Connect to WiFi
+
+1. After flashing, join the `ShinyStarter-Setup` WiFi network from your phone or laptop
+2. A config page opens automatically — select your home WiFi and enter the password
+3. The ESP32 reboots and joins your network; note its IP address from the serial monitor or router
+4. Enter that IP in the dashboard's ESP32 Config panel (or `backend/config.yaml`)
+
+To reconfigure WiFi later, visit `http://<ESP32_IP>/reset-wifi`.
+
+### Hardware Wiring
+
+```
+[Switch] ─(HDMI)→ [Capture Card] ─(USB)→ [PC]
+   ↑
+   └─(USB-C)─ [ESP32-S3]  ◄─(WiFi)─ [PC]
+```
+
+> **Requires:** XIAO ESP32-S3, USB-C data cable, any HDMI capture card (Elgato HD60, Neo, etc.), Nintendo Switch
+
+---
+
+## How It Works
+
+### Template-Driven Automation
+
+Every hunt is defined by an **automation template** — a JSON document containing:
+
+- **Steps**: ordered state-machine stages (boot → navigate → check → reset)
+- **Rules**: per-step conditions (`template_match`, `timeout`) and actions (`press_button`, `wait`)
+- **Detection config**: which method to use, HSV thresholds, zone coordinates
+- **Soft-reset timing**: hold duration, wait-after, retry limits
+
+Templates can be created visually in the dashboard's **Template Library** or written as JSON.
+
+### Included Hunt Templates
+
+| Template | Strategy |
+|----------|----------|
+| 🔥 Starter Hunt | Soft-reset, check summary for yellow star |
+| 🐟 Magikarp Hunt | Purchase Magikarp, check summary |
+| 🌿 Wild Encounter | Walk in grass, detect battle-entry sparkle |
+| 🗿 Static Encounter | Initiate encounter, detect sparkle |
+
+### Detection Methods
+
+| Method | How It Works |
+|--------|-------------|
+| **Yellow Star (summary)** | Crop ROI above Pokéball icon → HSV mask → count yellow pixels ≥ threshold |
+| **Battle Sparkle** | Analyze ring buffer of recent frames for bright-pixel spikes during battle entry |
+| **Continuous Monitor** | Background async task running sparkle analysis alongside the macro loop |
+
+---
+
+## Dashboard
+
+The React frontend provides:
+
+- **Live Video Feed** — real-time stream with detection zone overlays
+- **Control Panel** — start/stop automation, manual button presses, soft reset
+- **Template Library** — browse, create, edit, clone, import/export hunt templates
+- **Hunt Selector** — switch between current and past hunts
+- **Statistics Panel** — encounter count, shiny probability, nature & gender charts
+- **History Table** — paginated log with screenshot viewer and shiny highlighting
+- **Calibration Tools** — ROI zone picker, snapshot capture, HSV tuning
+- **Camera Selector** — scan and switch capture devices, set crop mode
+- **ESP32 Config** — set controller IP address from the UI
+
+---
+
+## Project Structure
+
+```
+ShinyStarter/
+├── backend/                   # Python FastAPI server
+│   ├── app/
+│   │   ├── main.py            # App entry, static serving
+│   │   ├── models.py          # AutomationTemplate, Hunt, Encounter, TemplateImage
+│   │   ├── routes/            # REST + WebSocket endpoints
+│   │   ├── services/          # Game engine, OpenCV detector, ESP32 manager, video capture
+│   │   └── utils/             # Command builder, logger
+│   ├── seed_templates/        # Pre-built hunt templates (auto-seeded on first run)
+│   ├── config.yaml            # Runtime configuration
+│   └── requirements.txt
+│
+├── frontend/                  # React + Vite dashboard
+│   └── src/
+│       ├── components/        # 15+ UI components
+│       ├── hooks/             # useWebSocket
+│       └── services/          # API client
+│
+├── desktop/                   # Electron desktop wrapper
+│   ├── main/                  # Main process + backend lifecycle manager
+│   ├── preload/               # Secure IPC bridge
+│   └── package.json           # electron-builder config
+│
+├── esp32/                     # ESP32-S3 firmware (PlatformIO)
+│   ├── src/main.cpp           # WiFi captive portal + USB HID controller
+│   └── platformio.ini
+│
+├── docs/                      # GitHub Pages — web firmware installer
+│   ├── index.html
+│   └── firmware/              # Compiled firmware binaries + manifest
+│
+└── scripts/                   # Build pipeline (backend → frontend → desktop)
+    ├── build-all.bat
+    ├── build-backend.bat
+    ├── build-frontend.bat
+    └── build-desktop.bat
+```
+
+---
+
+## API Reference
+
+All endpoints are documented interactively at `http://localhost:8000/docs` (Swagger UI).
+
+| Group | Prefix | Key Endpoints |
+|-------|--------|---------------|
+| Automation | `/api/automation` | `POST start`, `POST stop`, `GET status` |
+| Templates | `/api/automation-templates` | Full CRUD, `POST activate`, `GET export`, `POST import`, `POST clone` |
+| Statistics | `/api/statistics` | `GET current`, `GET history`, `GET charts` |
+| Hunts | `/api/statistics` | `POST new-hunt`, `GET hunts` |
+| Control | `/api/control` | `POST button`, `GET esp32/status`, `POST esp32/connect` |
+| Calibration | `/api/calibration` | `POST zone`, `GET snapshot`, `GET current` |
+| Camera | `/api/camera` | `GET devices`, `POST select`, `POST crop-mode` |
+| WebSocket | `/ws` | Real-time state updates, encounter events, video frames |
+
+---
+
+## Configuration
+
+### Backend (`backend/config.yaml`)
 
 ```yaml
 hardware:
-  esp32_ip: "192.168.4.1"           # ESP32 WiFi IP
-  esp32_port: 80                     # HTTP port
-  communication_mode: "wifi"         # or "uart"
-  camera_index: 0                    # Capture card index
-
-automation:
-  button_hold_duration: 0.1          # Seconds per press
-  soft_reset_hold: 0.5               # Reset combo duration
+  esp32_ip: "192.168.1.105"     # ESP32 WiFi IP
+  esp32_port: 80
+  camera_index: 0               # Capture card device index
 
 detection:
-  shiny_zone:                        # Coordinates for star
+  shiny_zone:                   # Coordinates for star detection
     upper_x: 264
     upper_y: 109
     lower_x: 312
     lower_y: 151
-  yellow_star_threshold: 20          # Minimum pixels for shiny
+  yellow_star_threshold: 20
 ```
 
-### Frontend Config (`.env` optional)
+### Desktop App Data
 
-```env
-VITE_API_URL=http://localhost:8000
-VITE_WS_URL=ws://localhost:8000/ws
+When running as a packaged desktop app, user data lives in:
+
+```
+%APPDATA%\ShinyStarter\
+├── config.yaml       # Configuration
+├── shinyhunter.db    # SQLite database
+├── encounters/       # Screenshot captures
+├── templates/        # Detection template images
+└── logs/             # Backend + Electron logs
 ```
 
 ---
 
-## 📊 Statistics & Tracking
+## Building from Source
 
-The system tracks comprehensive statistics:
+The full build pipeline produces an installable Windows desktop app:
 
-- **Total Encounters**: Every reset is logged
-- **Shiny Probability**: Cumulative odds calculated (1 - (8191/8192)^n)
-- **Gender Ratio**: Male vs Female distribution
-- **Nature Frequency**: Which natures appear most often
-- **Session Tracking**: Group encounters by session ID
-- **Screenshot Archive**: Every encounter auto-saved
+```bash
+scripts\build-all.bat       # Runs all three steps:
+```
 
-All data stored in `backend/shiny_hunter.db` (SQLite).
-
----
-
-## 🐛 Troubleshooting
-
-### ESP32 Disconnected
-- Check WiFi connection to ESP32
-- Verify IP address in config.yaml
-- Try manual button test first
-- See [`esp32/README.md`](esp32/README.md) for ESP32 debugging
-
-### Video Feed Not Showing
-- Check camera index in config.yaml (try 0, 1, 2)
-- Verify Elgato is connected
-- Backend logs should show "Video capture opened"
-- Try different capture devices in Device Manager
-
-### Templates Not Matching
-- Ensure templates are high-quality PNG
-- Verify correct resolution (should match your capture res)
-- Adjust threshold values in config.yaml
-- Check backend logs for detection attempts
-
-### Automation Stops Immediately
-- Templates may not match current game screen
-- Game save not positioned correctly
-- Check state machine logs in dashboard
-- Verify detection zones are calibrated
-
-### WebSocket Disconnected
-- Backend may have crashed - check logs
-- Firewall blocking port 8000
-- CORS issues - check backend cors_origins
-- Try refreshing browser
+| Step | Script | Output |
+|------|--------|--------|
+| 1. Backend | `build-backend.bat` | `backend-dist/backend.exe` (PyInstaller) |
+| 2. Frontend | `build-frontend.bat` | `frontend/dist/` (Vite) |
+| 3. Desktop | `build-desktop.bat` | `desktop/dist/ShinyStarter Setup *.exe` + portable |
 
 ---
 
-## 📚 Documentation
+## Contributing
 
-- [`plans/shiny-charmander-hunt-architecture.md`](plans/shiny-charmander-hunt-architecture.md) - Complete system architecture
-- [`NEXT_STEPS.md`](NEXT_STEPS.md) - Detailed setup checklist
-- [`backend/README.md`](backend/README.md) - Backend documentation
-- [`frontend/README.md`](frontend/README.md) - Frontend documentation
-- [`esp32/README.md`](esp32/README.md) - ESP32 firmware guide
-- API Docs: `http://localhost:8000/docs` (Swagger UI)
+### Adding Hunt Templates
 
----
+Anyone can contribute a new hunt strategy:
 
-## 🎯 Expected Performance
+1. Create a folder under `backend/seed_templates/` (e.g. `05_my_hunt/`)
+2. Add a `definition.json` and an `images/` folder with reference screenshots
+3. Test locally (delete `shiny_hunter.db`, restart backend, verify in Template Library)
+4. Open a PR
 
-- **Reset Speed**: ~30-60 seconds per encounter (depending on game speed)
-- **Video Processing**: 10-30 FPS (sufficient for turn-based game)
-- **Detection Accuracy**: 95%+ with proper calibration
-- **Shiny Odds**: 1/8192 (Gen 1/2) - expect ~4-8 hours average
+See [`backend/seed_templates/README.md`](backend/seed_templates/README.md) for the full schema and guidelines.
 
 ---
 
-## 🌟 Success Checklist
+## Troubleshooting
 
-Before you start your first automated hunt, verify:
-
-- [ ] Backend running on port 8000
-- [ ] Frontend running on port 3000
-- [ ] ESP32 connected (shows "OK" in dashboard)
-- [ ] Video feed displaying in dashboard
-- [ ] Manual button controls work
-- [ ] All 7 UI templates captured
-- [ ] All 25 nature templates captured
-- [ ] Shiny zone calibrated
-- [ ] Gender zone calibrated
-- [ ] Game save positioned in Oak's lab
-- [ ] Charmander in party slot 3
+| Problem | Solution |
+|---------|----------|
+| ESP32 not responding | Check WiFi — both devices must be on the same network. Try `curl http://<IP>/status` |
+| Video feed black | Change camera index in dashboard Camera Selector (try 0, 1, 2) |
+| Templates not matching | Recapture at your capture resolution; lower threshold in template editor |
+| Automation stuck | Check state in dashboard Status Banner; review backend logs |
+| WebSocket disconnected | Refresh browser; verify backend is running; check port 8000 firewall |
+| Desktop app blank screen | Backend still starting — wait a few seconds. Check `%APPDATA%\ShinyStarter\logs\` |
+| Switch doesn't see controller | Use a USB-C **data** cable (not charge-only); replug and check serial output |
 
 ---
 
-## 🤝 Contributing
+## Documentation
 
-This is a personal automation project. Feel free to fork and customize for your own shiny hunts!
-
-### Extending for Other Pokemon
-1. Adjust state machine in `backend/app/services/game_engine.py`
-2. Capture new templates for different game screens
-3. Update menu navigation logic
-4. Modify detection zones for different Pokemon
-
----
-
-## 📜 License
-
-This project is for educational and personal use. Nintendo, Pokemon, and Switch are trademarks of Nintendo Co., Ltd.
+- [`backend/README.md`](backend/README.md) — Backend API, services, database schema
+- [`frontend/README.md`](frontend/README.md) — Dashboard components, hooks, styling
+- [`esp32/README.md`](esp32/README.md) — Firmware, button codes, WiFi setup
+- [`desktop/README.md`](desktop/README.md) — Electron app, IPC API, build config
+- [`backend/seed_templates/README.md`](backend/seed_templates/README.md) — Template contribution guide
+- [`CAMERA_SETUP_GUIDE.md`](CAMERA_SETUP_GUIDE.md) — Capture card configuration
+- [`VIDEO_FEED_TROUBLESHOOTING.md`](VIDEO_FEED_TROUBLESHOOTING.md) — Video feed debugging
 
 ---
 
-## 🎉 Credits
+## License
 
-Built with:
-- FastAPI for blazing-fast async backend
-- React for responsive UI
-- OpenCV for computer vision
-- ESP32-C6 for hardware control
-- Recharts for beautiful data visualization
+MIT — This project is for educational and personal use. Nintendo, Pokémon, and Switch are trademarks of Nintendo Co., Ltd.
+
+---
+
+Built with FastAPI · React · OpenCV · Electron · ESP32-S3 · Recharts
 
 **Good luck on your shiny hunt!** ✨🔥
-
----
-
-## 🔗 Quick Links
-
-- **Backend API**: http://localhost:8000/docs
-- **Frontend Dashboard**: http://localhost:3000
-- **Backend Logs**: `backend/bot_history.log`
-- **Screenshots**: `backend/encounters/`
-- **Configuration**: `backend/config.yaml`
