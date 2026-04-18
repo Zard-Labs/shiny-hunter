@@ -1,6 +1,6 @@
 {
   "name": "shinystarter",
-  "version": "1.6.0",
+  "version": "1.6.1",
   "description": "ShinyStarter - Automated Shiny Pokemon Hunter",
   "main": "main/index.js",
   "author": "ShinyStarter",
