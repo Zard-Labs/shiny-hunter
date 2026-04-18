@@ -5,6 +5,7 @@ import ControlPanel from './components/ControlPanel'
 import HistoryTable from './components/HistoryTable'
 import StateBanner from './components/StateBanner'
 import CalibrationModal from './components/CalibrationModal'
+import SettingsModal from './components/SettingsModal'
 import CameraSelector from './components/CameraSelector'
 import ESP32Config from './components/ESP32Config'
 import TemplateCapturePanel from './components/TemplateCapturePanel'
@@ -33,6 +34,7 @@ function App() {
   })
   const [history, setHistory] = useState([])
   const [showCalibration, setShowCalibration] = useState(false)
+  const [showSettings, setShowSettings] = useState(false)
   const [showTemplateLibrary, setShowTemplateLibrary] = useState(false)
   const [selectedHuntId, setSelectedHuntId] = useState(null) // null = active hunt
   const { connected, lastMessage } = useWebSocket()
@@ -117,9 +119,18 @@ function App() {
     <div className="app">
       <header className="app-header">
         <h1>Shiny Hunter Dashboard</h1>
-        <div className="connection-status">
-          <span className={`status-indicator ${connected ? 'connected' : 'disconnected'}`}></span>
-          {connected ? 'Connected' : 'Disconnected'}
+        <div className="header-actions">
+          <button
+            className="settings-btn"
+            onClick={() => setShowSettings(true)}
+            title="Settings"
+          >
+            ⚙ Settings
+          </button>
+          <div className="connection-status">
+            <span className={`status-indicator ${connected ? 'connected' : 'disconnected'}`}></span>
+            {connected ? 'Connected' : 'Disconnected'}
+          </div>
         </div>
       </header>
 
@@ -158,6 +169,10 @@ function App() {
 
       {showCalibration && (
         <CalibrationModal onClose={() => setShowCalibration(false)} />
+      )}
+
+      {showSettings && (
+        <SettingsModal onClose={() => setShowSettings(false)} />
       )}
 
       {showTemplateLibrary && (

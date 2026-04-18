@@ -33,6 +33,8 @@ ShinyStarter automates shiny hunting across multiple Pokémon games by combining
 - 🎥 **Live Dashboard** — real-time video feed, detection overlays, statistics, and encounter history
 - ✨ **Dual Detection** — yellow-star pixel analysis for summary screens + battle-sparkle detection with continuous background monitoring (sparkle detection is ⚠️ **alpha**)
 - 📊 **Hunt Tracking** — group encounters into hunts, view per-hunt stats, archive and start fresh
+- 🔔 **Push Notifications** — get notified on your phone when a shiny is found via Pushover (with screenshot attachment)
+- ⚙️ **Settings Modal** — configure notifications and preferences from the dashboard
 
 ---
 
@@ -172,6 +174,7 @@ The React frontend provides:
 - **Calibration Tools** — ROI zone picker, snapshot capture, HSV tuning
 - **Camera Selector** — scan and switch capture devices, set crop mode
 - **ESP32 Config** — set controller IP address from the UI
+- **Settings Modal** — configure push notifications (Pushover), test delivery, and manage preferences via ⚙ button in the header
 
 ---
 
@@ -183,8 +186,8 @@ ShinyStarter/
 │   ├── app/
 │   │   ├── main.py            # App entry, static serving
 │   │   ├── models.py          # AutomationTemplate, Hunt, Encounter, TemplateImage
-│   │   ├── routes/            # REST + WebSocket endpoints
-│   │   ├── services/          # Game engine, OpenCV detector, ESP32 manager, video capture
+│   │   ├── routes/            # REST + WebSocket endpoints (automation, templates, notifications…)
+│   │   ├── services/          # Game engine, OpenCV detector, ESP32 manager, video capture, notifications
 │   │   └── utils/             # Command builder, logger
 │   ├── seed_templates/        # Pre-built hunt templates (auto-seeded on first run)
 │   ├── config.yaml            # Runtime configuration
@@ -231,6 +234,7 @@ All endpoints are documented interactively at `http://localhost:8000/docs` (Swag
 | Control | `/api/control` | `POST button`, `GET esp32/status`, `POST esp32/connect` |
 | Calibration | `/api/calibration` | `POST zone`, `GET snapshot`, `GET current` |
 | Camera | `/api/camera` | `GET devices`, `POST select`, `POST crop-mode` |
+| Notifications | `/api/notifications` | `GET settings`, `PUT settings`, `POST test` |
 | WebSocket | `/ws` | Real-time state updates, encounter events, video frames |
 
 ---
@@ -253,6 +257,20 @@ detection:
     lower_y: 151
   yellow_star_threshold: 20
 ```
+
+### Push Notifications
+
+Notifications are configured in the dashboard via **⚙ Settings → Notifications**. Settings are stored in the database (not `config.yaml`).
+
+| Setting | Description |
+|---------|-------------|
+| **Pushover Enable** | Master toggle for Pushover notifications |
+| **Application Token** | From [pushover.net/apps](https://pushover.net/apps) — create an app to get this |
+| **User Key** | From your [Pushover dashboard](https://pushover.net/) |
+| **Priority** | Lowest, Low, Normal, High, or Emergency |
+| **Sound** | Choose from 20+ Pushover sounds (e.g. Persistent, Siren, Cosmic) |
+
+When a shiny is found, the system sends a push notification with the encounter screenshot attached. Use **🔔 Send Test** in the settings modal to verify your configuration.
 
 ### Desktop App Data
 

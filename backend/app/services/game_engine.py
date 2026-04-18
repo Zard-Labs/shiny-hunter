@@ -17,6 +17,7 @@ from app.models import Encounter, Session as DBSession, Hunt, AutomationTemplate
 from app.services.esp32_manager import esp32_manager
 from app.services.video_capture import video_capture
 from app.services.opencv_detector import opencv_detector
+from app.services.notification_service import notification_service
 from app.utils.logger import logger
 
 
@@ -1099,6 +1100,16 @@ class DataDrivenGameEngine:
             "timestamp": datetime.utcnow().isoformat(),
         })
 
+        # Fire push notification (non-blocking — failures are logged, never halt the engine)
+        try:
+            await notification_service.send_shiny_notification(
+                pokemon_name=self.pokemon_name,
+                encounter_count=self.encounter_count,
+                screenshot_path=screenshot_path,
+            )
+        except Exception as exc:
+            logger.warning(f"[Notifications] Failed to send shiny notification: {exc}")
+
         self.stop()
         return True
 
@@ -1377,6 +1388,7 @@ class DataDrivenGameEngine:
         # ── Save video clip from the monitor's frames ─────────
         video_clip_url = None
         screenshot_url = None
+        screenshot_path = None
         screenshot_dir = self._screenshot_dir()
 
         if frames:
@@ -1464,6 +1476,16 @@ class DataDrivenGameEngine:
             "timestamp": datetime.utcnow().isoformat(),
             "detection_source": "continuous_monitor",
         })
+
+        # Fire push notification (non-blocking — failures are logged, never halt the engine)
+        try:
+            await notification_service.send_shiny_notification(
+                pokemon_name=self.pokemon_name,
+                encounter_count=self.encounter_count,
+                screenshot_path=screenshot_path,
+            )
+        except Exception as exc:
+            logger.warning(f"[Notifications] Failed to send shiny notification: {exc}")
 
         self.stop()
         return True

@@ -247,4 +247,22 @@ export const deleteAutomationTemplateImage = async (templateId, imageKey) => {
 export const getAutomationTemplateImagePreviewUrl = (templateId, imageKey) =>
   `${API_BASE_URL}/api/automation-templates/${templateId}/images/${imageKey}/preview`
 
+
+// ── Notification Settings ───────────────────────────────────────
+
+export const getNotificationSettings = async () => {
+  const response = await api.get('/api/notifications/settings')
+  return response.data
+}
+
+export const saveNotificationSettings = async (settings) => {
+  const response = await api.put('/api/notifications/settings', settings)
+  return response.data
+}
+
+export const sendTestNotification = async (overrides = {}) => {
+  const response = await api.post('/api/notifications/test', overrides)
+  return response.data
+}
+
 export default api

@@ -53,3 +53,12 @@ server:
   - http://localhost:3000
   - http://127.0.0.1:3000
   websocket_heartbeat: 5
+notifications:
+  # Notification settings are stored in the database (Settings modal).
+  # This section is for reference / documentation only.
+  pushover:
+    enabled: false
+    app_token: ""        # Get from https://pushover.net/apps (create an application)
+    user_key: ""         # Get from https://pushover.net/ (your user page)
+    priority: 1          # -2=lowest, -1=low, 0=normal, 1=high, 2=emergency
+    sound: "persistent"  # See https://pushover.net/api#sounds
